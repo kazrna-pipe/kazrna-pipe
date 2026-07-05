@@ -1,0 +1,14 @@
+# data/snapshots/GTEx-v8/frozen_manifest.tsv
+# Source: GTEx Portal v8 (https://gtexportal.org/home/datasets). The Esophagus
+# - Mucosa subset is used as a normal-tissue baseline (n ≈ 555).
+# Capture date: <FILL IN>
+#
+# To populate this manifest:
+#   1. Download:
+#        bash bin/fetch_gtex.sh --out data/raw/GTEx-v8
+#   2. The script writes data/raw/GTEx-v8/sha256.txt for every file it pulls.
+#   3. Copy that into the rows below; populate byte_size with `stat -c%s`.
+file	upstream_url	byte_size	sha256
+gene_reads_2017-06-05_v8_esophagus_mucosa.gct.gz	https://storage.googleapis.com/adult-gtex/bulk-gex/v8/rna-seq/tissue-gene-reads/gene_reads_2017-06-05_v8_esophagus_mucosa.gct.gz	pending	pending
+GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt	https://storage.googleapis.com/adult-gtex/annotations/v8/metadata-files/GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt	pending	pending
+GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt	https://storage.googleapis.com/adult-gtex/annotations/v8/metadata-files/GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt	pending	pending

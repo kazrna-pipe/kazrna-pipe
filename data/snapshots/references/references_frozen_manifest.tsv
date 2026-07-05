@@ -1,0 +1,21 @@
+# data/snapshots/references/frozen_manifest.tsv
+# Source: GENCODE release 44 / GRCh38.p14.
+# Capture date: <FILL IN>
+#
+# To populate this manifest:
+#   1. Run:
+#        bash bin/prepare_references.sh --out_dir data/refs --threads 16
+#      The script downloads the three GENCODE files, builds STAR / HISAT2 /
+#      Salmon indices, and emits sha256.txt entries for the downloads.
+#   2. Copy `sha256` and `byte_size` for each file into the rows below.
+#
+# Notes:
+#   - The aligner indices are NOT redistributed (multi-GB and host-specific);
+#     they are regenerated from the three GENCODE source files. Anyone with
+#     the same source files and the same tool versions will get the same
+#     indices to within tool-internal nondeterminism.
+file	upstream_url	byte_size	sha256
+GRCh38.p14.genome.fa.gz	https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/GRCh38.p14.genome.fa.gz	pending	pending
+gencode.v44.primary_assembly.annotation.gtf.gz	https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.primary_assembly.annotation.gtf.gz	pending	pending
+gencode.v44.transcripts.fa.gz	https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.transcripts.fa.gz	pending	pending
+tx2gene.v44.tsv	derived from gencode.v44.primary_assembly.annotation.gtf	pending	pending

@@ -1,0 +1,18 @@
+# data/snapshots/TCGA-ESCA/frozen_manifest.tsv
+# Source: GDC Data Release <FILL IN — current release at query time, e.g. 41.0>.
+# Capture date: <FILL IN>
+# Query: see data/snapshots/TCGA-ESCA/gdc_query.json (filters: ESCC histology,
+#        STAR - Counts workflow, Primary Tumor + Solid Tissue Normal).
+#
+# To populate this manifest:
+#   1. Run the query and download:
+#        Rscript scripts/R/fetch_tcga.R \
+#            --project TCGA-ESCA --histology squamous \
+#            --release <RELEASE>  --out_dir data/raw/TCGA-ESCA
+#   2. The script writes data/raw/TCGA-ESCA/gdc_manifest.tsv with the real
+#      GDC file_id values and verifies the SHA-256 of every downloaded file
+#      against the GDC API. Copy that file here, deleting this header.
+#
+# Until populated, file_id, file_name, and sha256 read "pending".
+file_id	case_submitter_id	sample_type	file_name	sha256
+pending	pending	pending	pending	pending

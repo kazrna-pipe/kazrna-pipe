@@ -1,0 +1,65 @@
+#!/usr/bin/env Rscript
+# ---------------------------------------------------------------------------
+# edgeR differential expression analysis for KazRNA-Pipe.
+#
+# Parallels deseq2_analysis.R for cross-method concordance comparisons
+# reported in manuscript Figure 2B.
+#
+# Bioconductor edgeR 4.2.1 - Robinson MD, McCarthy DJ, Smyth GK. Bioinformatics 2010.
+# ---------------------------------------------------------------------------
+
+suppressPackageStartupMessages({
+    library(optparse)
+    library(edgeR)
+    library(tibble)
+    library(readr)
+    library(dplyr)
+})
+
+opt_list <- list(
+    make_option("--counts",  type="character"),
+    make_option("--meta",    type="character"),
+    make_option("--outdir",  type="character", default="results/de/edger"),
+    make_option("--fdr",     type="double",    default=0.05),
+    make_option("--lfc",     type="double",    default=1.0),
+    make_option("--seed",    type="integer",   default=42L)
+)
+opt <- parse_args(OptionParser(option_list=opt_list))
+dir.create(opt$outdir, recursive=TRUE, showWarnings=FALSE)
+set.seed(opt$seed)
+
+counts <- as.matrix(read.table(opt$counts, header=TRUE, row.names=1,
+                               sep="\t", check.names=FALSE))
+meta <- read_csv(opt$meta, show_col_types=FALSE) %>%
+    as.data.frame() %>% { rownames(.) <- .$sample_id; . }
+
+common <- intersect(colnames(counts), rownames(meta))
+counts <- counts[, common, drop=FALSE]
+meta   <- meta[common, , drop=FALSE]
+meta$condition <- factor(meta$condition, levels=c("normal", "tumor"))
+
+# Build DGEList and filter weakly expressed genes
+dge <- DGEList(counts=counts, group=meta$condition)
+keep <- filterByExpr(dge, group=meta$condition)
+dge  <- dge[keep, , keep.lib.sizes=FALSE]
+dge  <- calcNormFactors(dge, method="TMM")
+
+# Quasi-likelihood F-test with age + sex covariates
+design <- model.matrix(~ age + sex + condition, data=meta)
+dge <- estimateDisp(dge, design, robust=TRUE)
+fit <- glmQLFit(dge, design, robust=TRUE)
+qlf <- glmQLFTest(fit, coef="conditiontumor")
+
+tt <- topTags(qlf, n=Inf, sort.by="PValue")$table %>%
+    as.data.frame() %>% rownames_to_column("gene_id")
+
+write_tsv(tt, file.path(opt$outdir, "edger_results.tsv"))
+sig <- tt %>% filter(!is.na(FDR), FDR < opt$fdr, abs(logFC) > opt$lfc)
+write_tsv(sig, file.path(opt$outdir, "edger_significant.tsv"))
+message(sprintf("edgeR DEGs at FDR < %.3g and |logFC| > %.2f: %d", opt$fdr, opt$lfc, nrow(sig)))
+
+sink(file.path(opt$outdir, "edger_session.txt"))
+cat("KazRNA-Pipe edgeR module\n========================\n\n")
+cat("Run datetime: ", format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"), "\n", sep="")
+print(sessionInfo()); sink()
+message("edgeR module complete.")

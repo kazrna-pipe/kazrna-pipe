@@ -1,0 +1,20 @@
+# data/snapshots/GSE160269/frozen_manifest.tsv
+# Source: NCBI GEO. Series GSE160269 (Zhang et al. 2021, Nat Commun,
+#   doi:10.1038/s41467-021-25539-x). 208,659 cells across 60 samples,
+#   10x Genomics 3' v2 chemistry.
+# Capture date: <FILL IN — date you populate this manifest>
+#
+# To populate this manifest:
+#   1. Download the series matrix and supplementary files:
+#        bash bin/geo_fetch.sh --acc GSE160269 --out data/raw/GSE160269
+#   2. Generate the SHA-256s:
+#        cd data/raw/GSE160269 && sha256sum * > sha256.txt
+#   3. Paste each <file, byte_size, sha256> triple below, deleting this header.
+#
+# Until populated, byte_size and sha256 read "pending".
+file	byte_size	sha256
+GSE160269_series_matrix.txt.gz	pending	pending
+GSE160269_celltype_annotation.tsv.gz	pending	pending
+# Per-sample HDF5 matrices: one row per GSM accession. List populated
+# after `bin/geo_fetch.sh` enumerates the supplementary files. See
+# data/samples_GSE160269.csv for the sample → GSM mapping.

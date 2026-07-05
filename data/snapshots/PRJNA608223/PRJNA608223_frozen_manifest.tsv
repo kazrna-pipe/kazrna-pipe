@@ -1,0 +1,53 @@
+# data/snapshots/PRJNA608223/frozen_manifest.tsv
+# Source: ENA filereport API for accession=PRJNA608223, result=read_run.
+# Capture date: <FILL IN — date you re-queried ENA>
+# Scope: 22 runs × 2 paired FASTQ = 44 files (see samples_PRJNA608223.csv).
+#
+# md5 and byte_size come from a re-query of ENA with `fastq_md5` and
+# `fastq_bytes`; sha256 is computed locally after download. Until any
+# of these are filled, the columns read "pending". See PLACEHOLDERS.md.
+run_accession	file	byte_size	md5	sha256
+SRR11149635	SRR11149635_1.fastq.gz	pending	pending	pending
+SRR11149635	SRR11149635_2.fastq.gz	pending	pending	pending
+SRR11149636	SRR11149636_1.fastq.gz	pending	pending	pending
+SRR11149636	SRR11149636_2.fastq.gz	pending	pending	pending
+SRR11149637	SRR11149637_1.fastq.gz	pending	pending	pending
+SRR11149637	SRR11149637_2.fastq.gz	pending	pending	pending
+SRR11149638	SRR11149638_1.fastq.gz	pending	pending	pending
+SRR11149638	SRR11149638_2.fastq.gz	pending	pending	pending
+SRR11149639	SRR11149639_1.fastq.gz	pending	pending	pending
+SRR11149639	SRR11149639_2.fastq.gz	pending	pending	pending
+SRR11149640	SRR11149640_1.fastq.gz	pending	pending	pending
+SRR11149640	SRR11149640_2.fastq.gz	pending	pending	pending
+SRR11149641	SRR11149641_1.fastq.gz	pending	pending	pending
+SRR11149641	SRR11149641_2.fastq.gz	pending	pending	pending
+SRR11149642	SRR11149642_1.fastq.gz	pending	pending	pending
+SRR11149642	SRR11149642_2.fastq.gz	pending	pending	pending
+SRR11149643	SRR11149643_1.fastq.gz	pending	pending	pending
+SRR11149643	SRR11149643_2.fastq.gz	pending	pending	pending
+SRR11149644	SRR11149644_1.fastq.gz	pending	pending	pending
+SRR11149644	SRR11149644_2.fastq.gz	pending	pending	pending
+SRR11149645	SRR11149645_1.fastq.gz	pending	pending	pending
+SRR11149645	SRR11149645_2.fastq.gz	pending	pending	pending
+SRR11149646	SRR11149646_1.fastq.gz	pending	pending	pending
+SRR11149646	SRR11149646_2.fastq.gz	pending	pending	pending
+SRR11149647	SRR11149647_1.fastq.gz	pending	pending	pending
+SRR11149647	SRR11149647_2.fastq.gz	pending	pending	pending
+SRR11149648	SRR11149648_1.fastq.gz	pending	pending	pending
+SRR11149648	SRR11149648_2.fastq.gz	pending	pending	pending
+SRR11149649	SRR11149649_1.fastq.gz	pending	pending	pending
+SRR11149649	SRR11149649_2.fastq.gz	pending	pending	pending
+SRR11149650	SRR11149650_1.fastq.gz	pending	pending	pending
+SRR11149650	SRR11149650_2.fastq.gz	pending	pending	pending
+SRR11149651	SRR11149651_1.fastq.gz	pending	pending	pending
+SRR11149651	SRR11149651_2.fastq.gz	pending	pending	pending
+SRR11149652	SRR11149652_1.fastq.gz	pending	pending	pending
+SRR11149652	SRR11149652_2.fastq.gz	pending	pending	pending
+SRR11149653	SRR11149653_1.fastq.gz	pending	pending	pending
+SRR11149653	SRR11149653_2.fastq.gz	pending	pending	pending
+SRR11149654	SRR11149654_1.fastq.gz	pending	pending	pending
+SRR11149654	SRR11149654_2.fastq.gz	pending	pending	pending
+SRR11149655	SRR11149655_1.fastq.gz	pending	pending	pending
+SRR11149655	SRR11149655_2.fastq.gz	pending	pending	pending
+SRR11149656	SRR11149656_1.fastq.gz	pending	pending	pending
+SRR11149656	SRR11149656_2.fastq.gz	pending	pending	pending

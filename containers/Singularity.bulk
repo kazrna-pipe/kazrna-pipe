@@ -1,0 +1,39 @@
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8-jammy
+
+%labels
+    Maintainer zhumadillayeva_ak@enu.kz
+    Pipeline   kazrna-pipe v1.0.0
+    Image      kazrna/bulk:1.0.0
+    Built      2025-11-04
+
+%files
+    containers/locks/bulk.lock.yml /tmp/env.yml
+
+%post
+    micromamba install -y -n base -f /tmp/env.yml && \
+        micromamba clean -a -y
+    # Strip docs and pyc to shrink the image
+    find /opt/conda -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export MAMBA_DOCKERFILE_ACTIVATE=1
+
+%runscript
+    exec "$@"
+
+%test
+    set -e
+    which STAR             && STAR --version
+    which hisat2           && hisat2 --version
+    which salmon           && salmon --version
+    which featureCounts    && featureCounts -v
+    which fastqc           && fastqc --version
+    which trim_galore      && trim_galore --version
+    which samtools         && samtools --version | head -1
+    which multiqc          && multiqc --version
+    Rscript -e 'stopifnot(packageVersion("DESeq2") >= "1.44.0")'
+    Rscript -e 'stopifnot(packageVersion("edgeR")  >= "4.2.1")'
+    Rscript -e 'stopifnot(packageVersion("limma")  >= "3.60.6")'
+    Rscript -e 'stopifnot(packageVersion("tximport") >= "1.32.0")'

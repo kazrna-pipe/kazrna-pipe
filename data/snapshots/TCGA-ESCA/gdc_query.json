@@ -1,0 +1,27 @@
+{
+  "_comment": "GDC API query payload for the TCGA-ESCA squamous validation cohort.",
+  "_to_populate": "Set release to the actual GDC release in use at run time; the resulting `n_files_returned` and `n_cases_returned` are written by scripts/R/fetch_tcga.R after the query.",
+  "filters": {
+    "op": "and",
+    "content": [
+      {"op": "in", "content": {"field": "cases.project.project_id", "value": ["TCGA-ESCA"]}},
+      {"op": "in", "content": {"field": "files.data_category", "value": ["Transcriptome Profiling"]}},
+      {"op": "in", "content": {"field": "files.data_type", "value": ["Gene Expression Quantification"]}},
+      {"op": "in", "content": {"field": "files.analysis.workflow_type", "value": ["STAR - Counts"]}},
+      {"op": "in", "content": {"field": "cases.samples.sample_type", "value": ["Primary Tumor", "Solid Tissue Normal"]}},
+      {"op": "in", "content": {"field": "cases.diagnoses.primary_diagnosis", "value": [
+        "Squamous cell carcinoma, NOS",
+        "Squamous cell carcinoma, keratinizing, NOS",
+        "Basaloid squamous cell carcinoma",
+        "Squamous cell carcinoma, large cell, nonkeratinizing, NOS"
+      ]}}
+    ]
+  },
+  "fields": "file_id,file_name,cases.submitter_id,cases.case_id,cases.samples.sample_type,cases.samples.submitter_id,cases.diagnoses.primary_diagnosis,cases.demographic.gender,cases.demographic.race,cases.demographic.year_of_birth,cases.diagnoses.ajcc_pathologic_stage,analysis.workflow_type",
+  "size": 5000,
+  "format": "JSON",
+  "release": "<FILL IN — GDC Data Release version at query time>",
+  "captured_at": "<FILL IN — ISO timestamp of query>",
+  "n_files_returned": "<FILL IN — written by scripts/R/fetch_tcga.R>",
+  "n_cases_returned": "<FILL IN — written by scripts/R/fetch_tcga.R>"
+}

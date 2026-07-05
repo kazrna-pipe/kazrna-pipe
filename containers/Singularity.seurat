@@ -1,0 +1,32 @@
+Bootstrap: docker
+From: rocker/r-ver:4.4.1
+
+%labels
+    Maintainer zhumadillayeva_ak@enu.kz
+    Pipeline   kazrna-pipe v1.0.0
+    Image      kazrna/seurat:1.0.0
+    Built      2025-11-04
+
+%files
+    containers/locks/seurat.lock.R /tmp/install.R
+
+%post
+    apt-get update && apt-get install -y --no-install-recommends \
+        libcurl4-openssl-dev libssl-dev libxml2-dev libpng-dev libjpeg-dev \
+        libtiff5-dev libfontconfig1-dev libcairo2-dev libharfbuzz-dev \
+        libfribidi-dev libfreetype6-dev libgit2-dev libhdf5-dev \
+        libglpk-dev libgsl-dev cmake git pandoc && \
+        rm -rf /var/lib/apt/lists/*
+
+    Rscript /tmp/install.R
+
+%environment
+    export OPENBLAS_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+
+%test
+    set -e
+    Rscript -e 'stopifnot(packageVersion("Seurat") >= "5.1.0")'
+    Rscript -e 'stopifnot(packageVersion("SeuratObject") >= "5.0.2")'
+    Rscript -e 'stopifnot(packageVersion("BayesPrism") >= "2.2.0")'
+    Rscript -e 'stopifnot(packageVersion("MuSiC") >= "1.0.0")'

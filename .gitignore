@@ -1,0 +1,58 @@
+# --- Nextflow ---
+work/
+.nextflow*/
+.nextflow.log*
+*.command.*
+.report.html*
+.timeline.html*
+.trace.txt*
+
+# --- Pipeline outputs ---
+results/
+results_*/
+figures/
+ci_bench_*/
+
+# --- Raw and intermediate data ---
+data/raw/
+data/refs/
+data/snapshots/**/*.fa
+data/snapshots/**/*.fa.gz
+data/snapshots/**/*.fastq*
+data/snapshots/**/*.bam
+data/snapshots/**/*.h5
+data/snapshots/**/*.h5ad
+# We keep manifests, queries, and series_matrices in git (they are small)
+
+# --- Singularity / containers ---
+containers/cache/
+*.sif
+.singularity_cache/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+
+# --- R ---
+.Rhistory
+.RData
+.Rproj.user/
+*.rds
+renv/library/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+docs/_build/
+docs/_site/
+
+# --- Secrets ---
+.cibersortx_token
+*.pem
+*.key

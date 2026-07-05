@@ -1,0 +1,39 @@
+# Master environment manifest (informative).
+# The authoritative, byte-reproducible specifications are in containers/locks/.
+name: kazrna-pipe
+channels:
+  - conda-forge
+  - bioconda
+  - nvidia
+dependencies:
+  # Aligners + quantifiers
+  - star=2.7.11a
+  - hisat2=2.2.1
+  - salmon=1.10.2
+  - subread=2.0.6        # featureCounts
+  # QC / trimming
+  - fastqc=0.12.1
+  - trim-galore=0.6.10
+  - cutadapt=4.9
+  - samtools=1.20
+  - multiqc=1.24.1
+  # R stack (versions enforced inside Singularity.seurat / Singularity.bulk)
+  - r-base=4.4.1
+  - bioconductor-deseq2=1.44.0
+  - bioconductor-edger=4.2.1
+  - bioconductor-limma=3.60.6
+  - bioconductor-tximport=1.32.0
+  - bioconductor-clusterprofiler=4.12.6
+  - bioconductor-glmgampoi=1.16.0
+  - r-seurat=5.1.0
+  # Python / single-cell GPU
+  - python=3.11.9
+  - scanpy=1.10.2
+  - anndata=0.10.8
+  - pip
+  - pip:
+      - rapids-singlecell==0.10.10
+      - leidenalg==0.10.2
+      - scrublet==0.2.3
+      - decoupler==1.7.0
+      - harmonypy==0.0.10

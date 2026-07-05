@@ -1,0 +1,30 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/rapidsai/notebooks:24.06-cuda12.2-py3.11
+
+%labels
+    Maintainer zhumadillayeva_ak@enu.kz
+    Pipeline   kazrna-pipe v1.0.0
+    Image      kazrna/rapids:1.0.0
+    Built      2025-11-04
+    BaseImage  nvcr.io/nvidia/rapidsai/notebooks@sha256:7c8e0f… (see MANIFEST)
+
+%files
+    containers/locks/rapids.lock.yml /tmp/env.yml
+
+%post
+    mamba env update -n rapids -f /tmp/env.yml && mamba clean -a -y
+    pip install --no-cache-dir rapids-singlecell==0.10.10
+    pip install --no-cache-dir scanpy==1.10.2 anndata==0.10.8 \
+        scvi-tools==1.1.5 leidenalg==0.10.2 igraph==0.11.6 \
+        decoupler==1.7.0 scrublet==0.2.3 harmonypy==0.0.10
+
+%environment
+    export PATH=/opt/conda/envs/rapids/bin:$PATH
+    export RMM_POOL_SIZE=24GB
+    export CUPY_GPU_MEMORY_LIMIT="80%"
+
+%test
+    set -e
+    python -c 'import rapids_singlecell as r; assert r.__version__ == "0.10.10", r.__version__'
+    python -c 'import cudf, cuml; print(cudf.__version__, cuml.__version__)'
+    python -c 'import scanpy as sc; print(sc.__version__)'

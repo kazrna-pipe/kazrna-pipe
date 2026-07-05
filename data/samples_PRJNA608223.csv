@@ -1,0 +1,35 @@
+# samples_PRJNA608223.csv
+# 22 ESCC bulk RNA-seq samples from PRJNA608223 (Sharip et al. 2024,
+#   Front. Genet. 15:1249751; doi:10.3389/fgene.2024.1249751).
+# Cohort selection: first 22 runs sorted by run accession from the public
+#   deposit (25 runs total). The criterion is deterministic and the
+#   excluded 3 runs are: SRR11149657, SRR11149658, SRR11149659.
+# Tumour/normal labels: the public ENA filereport does not include the
+#   `sample_title` field by default. To verify per-sample condition, run:
+#     curl -sSL 'https://www.ebi.ac.uk/ena/portal/api/filereport?accession=PRJNA608223&result=read_run&fields=run_accession,sample_accession,sample_title,sample_alias,library_name&format=tsv'
+#   and merge the `sample_title` column into this sheet, replacing the
+#   `condition` value below where appropriate.
+# Per the manuscript, all 22 are treated as ESCC tumour samples.
+sample_id,run_accession,biosample,condition,tissue,fastq_1,fastq_2,strandedness,single_end
+SAMN14167823,SRR11149635,SAMN14167823,tumor,esophagus,data/raw/PRJNA608223/SRR11149635_1.fastq.gz,data/raw/PRJNA608223/SRR11149635_2.fastq.gz,reverse,false
+SAMN14167822,SRR11149636,SAMN14167822,tumor,esophagus,data/raw/PRJNA608223/SRR11149636_1.fastq.gz,data/raw/PRJNA608223/SRR11149636_2.fastq.gz,reverse,false
+SAMN14167821,SRR11149637,SAMN14167821,tumor,esophagus,data/raw/PRJNA608223/SRR11149637_1.fastq.gz,data/raw/PRJNA608223/SRR11149637_2.fastq.gz,reverse,false
+SAMN14167820,SRR11149638,SAMN14167820,tumor,esophagus,data/raw/PRJNA608223/SRR11149638_1.fastq.gz,data/raw/PRJNA608223/SRR11149638_2.fastq.gz,reverse,false
+SAMN14167819,SRR11149639,SAMN14167819,tumor,esophagus,data/raw/PRJNA608223/SRR11149639_1.fastq.gz,data/raw/PRJNA608223/SRR11149639_2.fastq.gz,reverse,false
+SAMN14167818,SRR11149640,SAMN14167818,tumor,esophagus,data/raw/PRJNA608223/SRR11149640_1.fastq.gz,data/raw/PRJNA608223/SRR11149640_2.fastq.gz,reverse,false
+SAMN14167817,SRR11149641,SAMN14167817,tumor,esophagus,data/raw/PRJNA608223/SRR11149641_1.fastq.gz,data/raw/PRJNA608223/SRR11149641_2.fastq.gz,reverse,false
+SAMN14167838,SRR11149642,SAMN14167838,tumor,esophagus,data/raw/PRJNA608223/SRR11149642_1.fastq.gz,data/raw/PRJNA608223/SRR11149642_2.fastq.gz,reverse,false
+SAMN14167837,SRR11149643,SAMN14167837,tumor,esophagus,data/raw/PRJNA608223/SRR11149643_1.fastq.gz,data/raw/PRJNA608223/SRR11149643_2.fastq.gz,reverse,false
+SAMN14167836,SRR11149644,SAMN14167836,tumor,esophagus,data/raw/PRJNA608223/SRR11149644_1.fastq.gz,data/raw/PRJNA608223/SRR11149644_2.fastq.gz,reverse,false
+SAMN14167835,SRR11149645,SAMN14167835,tumor,esophagus,data/raw/PRJNA608223/SRR11149645_1.fastq.gz,data/raw/PRJNA608223/SRR11149645_2.fastq.gz,reverse,false
+SAMN14167834,SRR11149646,SAMN14167834,tumor,esophagus,data/raw/PRJNA608223/SRR11149646_1.fastq.gz,data/raw/PRJNA608223/SRR11149646_2.fastq.gz,reverse,false
+SAMN14167816,SRR11149647,SAMN14167816,tumor,esophagus,data/raw/PRJNA608223/SRR11149647_1.fastq.gz,data/raw/PRJNA608223/SRR11149647_2.fastq.gz,reverse,false
+SAMN14167833,SRR11149648,SAMN14167833,tumor,esophagus,data/raw/PRJNA608223/SRR11149648_1.fastq.gz,data/raw/PRJNA608223/SRR11149648_2.fastq.gz,reverse,false
+SAMN14167832,SRR11149649,SAMN14167832,tumor,esophagus,data/raw/PRJNA608223/SRR11149649_1.fastq.gz,data/raw/PRJNA608223/SRR11149649_2.fastq.gz,reverse,false
+SAMN14167831,SRR11149650,SAMN14167831,tumor,esophagus,data/raw/PRJNA608223/SRR11149650_1.fastq.gz,data/raw/PRJNA608223/SRR11149650_2.fastq.gz,reverse,false
+SAMN14167830,SRR11149651,SAMN14167830,tumor,esophagus,data/raw/PRJNA608223/SRR11149651_1.fastq.gz,data/raw/PRJNA608223/SRR11149651_2.fastq.gz,reverse,false
+SAMN14167829,SRR11149652,SAMN14167829,tumor,esophagus,data/raw/PRJNA608223/SRR11149652_1.fastq.gz,data/raw/PRJNA608223/SRR11149652_2.fastq.gz,reverse,false
+SAMN14167828,SRR11149653,SAMN14167828,tumor,esophagus,data/raw/PRJNA608223/SRR11149653_1.fastq.gz,data/raw/PRJNA608223/SRR11149653_2.fastq.gz,reverse,false
+SAMN14167827,SRR11149654,SAMN14167827,tumor,esophagus,data/raw/PRJNA608223/SRR11149654_1.fastq.gz,data/raw/PRJNA608223/SRR11149654_2.fastq.gz,reverse,false
+SAMN14167826,SRR11149655,SAMN14167826,tumor,esophagus,data/raw/PRJNA608223/SRR11149655_1.fastq.gz,data/raw/PRJNA608223/SRR11149655_2.fastq.gz,reverse,false
+SAMN14167825,SRR11149656,SAMN14167825,tumor,esophagus,data/raw/PRJNA608223/SRR11149656_1.fastq.gz,data/raw/PRJNA608223/SRR11149656_2.fastq.gz,reverse,false

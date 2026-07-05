@@ -1,0 +1,6 @@
+sample_id,subject_id,condition,tissue,chemistry,n_cells_filtered,matrix_h5,celltype_annotation,source_accession
+GSM4869684,P1,tumor,esophagus,10x_v2_3prime,7184,data/raw/GSE160269/GSM4869684_P1_T_filtered_feature_bc_matrix.h5,data/raw/GSE160269/GSE160269_celltype_annotation.tsv,GSE160269
+GSM4869685,P1,normal,esophagus,10x_v2_3prime,5621,data/raw/GSE160269/GSM4869685_P1_N_filtered_feature_bc_matrix.h5,data/raw/GSE160269/GSE160269_celltype_annotation.tsv,GSE160269
+GSM4869686,P2,tumor,esophagus,10x_v2_3prime,8302,data/raw/GSE160269/GSM4869686_P2_T_filtered_feature_bc_matrix.h5,data/raw/GSE160269/GSE160269_celltype_annotation.tsv,GSE160269
+GSM4869687,P2,normal,esophagus,10x_v2_3prime,6418,data/raw/GSE160269/GSM4869687_P2_N_filtered_feature_bc_matrix.h5,data/raw/GSE160269/GSE160269_celltype_annotation.tsv,GSE160269
+# (60 samples total in GSE160269 - see data/snapshots/GSE160269/series_matrix for full list)
