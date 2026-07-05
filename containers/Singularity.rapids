@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: nvcr.io/nvidia/rapidsai/notebooks:24.06-cuda12.2-py3.11
+From: rapidsai/base:24.06-cuda12.2-py3.11@sha256:8f0c5090edf797a31412c40d72ffd003c2a9a3a3e957529f0a044fc776c06a59
 
 %labels
     Maintainer zhumadillayeva_ak@enu.kz

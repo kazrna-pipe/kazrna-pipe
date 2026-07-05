@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: rocker/r-ver:4.4.1
+From: rocker/r-ver:4.4.1@sha256:78cb94ce2db23aaaf7b546450fcf70b5a3f2ace5a9b5fa1f87217da329211312
 
 %labels
     Maintainer zhumadillayeva_ak@enu.kz
