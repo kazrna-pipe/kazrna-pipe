@@ -1,0 +1,9 @@
+chrTest	test	gene	1000	2000	.	+	.	gene_id "GENE1"; gene_name "GENE1";
+chrTest	test	transcript	1000	2000	.	+	.	gene_id "GENE1"; transcript_id "GENE1T1"; gene_name "GENE1";
+chrTest	test	exon	1000	2000	.	+	.	gene_id "GENE1"; transcript_id "GENE1T1"; gene_name "GENE1";
+chrTest	test	gene	4000	5500	.	+	.	gene_id "GENE2"; gene_name "GENE2";
+chrTest	test	transcript	4000	5500	.	+	.	gene_id "GENE2"; transcript_id "GENE2T1"; gene_name "GENE2";
+chrTest	test	exon	4000	5500	.	+	.	gene_id "GENE2"; transcript_id "GENE2T1"; gene_name "GENE2";
+chrTest	test	gene	8000	9200	.	+	.	gene_id "GENE3"; gene_name "GENE3";
+chrTest	test	transcript	8000	9200	.	+	.	gene_id "GENE3"; transcript_id "GENE3T1"; gene_name "GENE3";
+chrTest	test	exon	8000	9200	.	+	.	gene_id "GENE3"; transcript_id "GENE3T1"; gene_name "GENE3";

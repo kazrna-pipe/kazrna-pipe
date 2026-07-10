@@ -1,0 +1,69 @@
+STAR version=2.7.11a
+STAR compilation time,server,dir=2023-09-15T02:58:53+0000 :/opt/conda/conda-bld/star_1694746407721/work/source
+##### Command Line:
+/usr/local/bin/STAR-avx2 --runMode genomeGenerate --genomeDir /refs/star_index --genomeFastaFiles /refs/mini.fa --sjdbGTFfile /refs/gencode.v44.annotation.gtf --genomeSAindexNbases 5 --sjdbOverhang 99 --runThreadN 2
+##### Initial USER parameters from Command Line:
+###### All USER parameters from Command Line:
+runMode                       genomeGenerate        ~RE-DEFINED
+genomeDir                     /refs/star_index     ~RE-DEFINED
+genomeFastaFiles              /refs/mini.fa        ~RE-DEFINED
+sjdbGTFfile                   /refs/gencode.v44.annotation.gtf     ~RE-DEFINED
+genomeSAindexNbases           5     ~RE-DEFINED
+sjdbOverhang                  99     ~RE-DEFINED
+runThreadN                    2     ~RE-DEFINED
+##### Finished reading parameters from all sources
+
+##### Final user re-defined parameters-----------------:
+runMode                           genomeGenerate   
+runThreadN                        2
+genomeDir                         /refs/star_index
+genomeFastaFiles                  /refs/mini.fa   
+genomeSAindexNbases               5
+sjdbGTFfile                       /refs/gencode.v44.annotation.gtf
+sjdbOverhang                      99
+
+-------------------------------
+##### Final effective command line:
+/usr/local/bin/STAR-avx2   --runMode genomeGenerate      --runThreadN 2   --genomeDir /refs/star_index   --genomeFastaFiles /refs/mini.fa      --genomeSAindexNbases 5   --sjdbGTFfile /refs/gencode.v44.annotation.gtf   --sjdbOverhang 99
+----------------------------------------
+
+Number of fastq files for each mate = 1
+ParametersSolo: --soloCellFilterType CellRanger2.2 filtering parameters:  3000 0.99 10
+Finished loading and checking parameters
+--genomeDir directory exists and will be overwritten: /refs/star_index/
+Jul 10 18:48:04 ... starting to generate Genome files
+/refs/mini.fa : chr # 0  "chrTest" chrStart: 0
+Chromosome sequence lengths: 
+chrTest	10000
+Genome sequence total length = 10000
+Genome size with padding = 262144
+Jul 10 18:48:04 ..... processing annotations GTF
+Processing pGe.sjdbGTFfile=/refs/gencode.v44.annotation.gtf, found:
+		3 transcripts
+		3 exons (non-collapsed)
+		0 collapsed junctions
+Total junctions: 0
+Jul 10 18:48:04 ..... finished GTF processing
+
+Estimated genome size with padding and SJs: total=genome+SJ=199262144 = 262144 + 199000000
+GstrandBit=32
+Number of SA indices: 20000
+Jul 10 18:48:04 ... starting to sort Suffix Array. This may take a long time...
+Number of chunks: 1;   chunks size limit: 160000 bytes
+Jul 10 18:48:04 ... sorting Suffix Array chunks and saving them to disk...
+Writing 160000 bytes into /refs/star_index//SA_0 ; empty space on disk = 1023557337088 bytes ... done
+Jul 10 18:48:04 ... loading chunks from disk, packing SA...
+Jul 10 18:48:04 ... finished generating suffix array
+Jul 10 18:48:04 ... generating Suffix Array index
+Jul 10 18:48:04 ... completed Suffix Array index
+Jul 10 18:48:04   Finished preparing junctions
+Jul 10 18:48:04 ..... finished inserting junctions into genome
+Jul 10 18:48:04 ... writing Genome to disk ...
+Writing 262144 bytes into /refs/star_index//Genome ; empty space on disk = 1023557599232 bytes ... done
+SA size in bytes: 82503
+Jul 10 18:48:04 ... writing Suffix Array to disk ...
+Writing 82503 bytes into /refs/star_index//SA ; empty space on disk = 1023557423104 bytes ... done
+Jul 10 18:48:04 ... writing SAindex to disk
+Writing 8 bytes into /refs/star_index//SAindex ; empty space on disk = 1023557345280 bytes ... done
+Writing 48 bytes into /refs/star_index//SAindex ; empty space on disk = 1023557345280 bytes ... done
+Writing 5971 bytes into /refs/star_index//SAindex ; empty space on disk = 1023557345280 bytes ... done

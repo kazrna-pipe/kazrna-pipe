@@ -78,13 +78,15 @@ workflow {
         ch_sc_samples = Channel
             .fromPath(params.sc_input)
             .splitCsv(header: true)
-            .map { row -> tuple(row.sample_id, file(row.matrix_dir)) }
+            .map { row -> tuple([id: row.sample_id, condition: row.condition], file(row.matrix_h5)) }
 
-        SCRNASEQ_CPU(ch_sc_samples)
+        ch_marker_yaml = file(params.marker_yaml)
+
+        SCRNASEQ_CPU(ch_sc_samples, ch_marker_yaml)
         versions_ch = versions_ch.mix(SCRNASEQ_CPU.out.versions)
 
         if (params.run_gpu) {
-            SCRNASEQ_GPU(ch_sc_samples)
+            SCRNASEQ_GPU(ch_sc_samples, ch_marker_yaml)
             versions_ch = versions_ch.mix(SCRNASEQ_GPU.out.versions)
         }
     }

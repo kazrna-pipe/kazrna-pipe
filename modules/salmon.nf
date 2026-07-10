@@ -11,7 +11,7 @@ process SALMON_QUANT {
     label 'process_medium'
     publishDir "${params.outdir}/bulk/salmon", mode: params.publish_dir_mode
 
-    container 'quay.io/biocontainers/salmon:1.10.2--h7e5ed60_1'
+    container 'quay.io/biocontainers/salmon:1.10.2--hecfa306_0'
 
     input:
     tuple val(sample_id), val(condition), path(fastq_1), path(fastq_2)

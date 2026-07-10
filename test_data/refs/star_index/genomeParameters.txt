@@ -1,0 +1,19 @@
+### /usr/local/bin/STAR-avx2   --runMode genomeGenerate      --runThreadN 2   --genomeDir /refs/star_index   --genomeFastaFiles /refs/mini.fa      --genomeSAindexNbases 5   --sjdbGTFfile /refs/gencode.v44.annotation.gtf   --sjdbOverhang 99
+### GstrandBit 32
+versionGenome	2.7.4a
+genomeType	Full
+genomeFastaFiles	/refs/mini.fa 
+genomeSAindexNbases	5
+genomeChrBinNbits	18
+genomeSAsparseD	1
+genomeTransformType	None
+genomeTransformVCF	-
+sjdbOverhang	99
+sjdbFileChrStartEnd	- 
+sjdbGTFfile	/refs/gencode.v44.annotation.gtf
+sjdbGTFchrPrefix	-
+sjdbGTFfeatureExon	exon
+sjdbGTFtagExonParentTranscript	transcript_id
+sjdbGTFtagExonParentGene	gene_id
+sjdbInsertSave	Basic
+genomeFileSizes	262144 82503

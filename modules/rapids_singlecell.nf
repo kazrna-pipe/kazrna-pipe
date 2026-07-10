@@ -25,9 +25,9 @@ process RAPIDS_SINGLECELL {
         --counts_dir    ${matrix_dir} \\
         --sample_id     ${meta.id} \\
         --markers       ${marker_yaml} \\
-        --n_features    ${params.sc_n_hvgs} \\
+        --n_features    ${params.sc_hvg_n} \\
         --n_pcs         ${params.sc_n_pcs} \\
-        --resolutions   ${params.sc_resolutions} \\
+        --resolutions   ${params.sc_leiden_resolutions} \\
         --out_dir       .
 
     cat <<-VER > versions.yml

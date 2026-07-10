@@ -95,7 +95,6 @@ kazrna-pipe/
 ```bash
 git clone https://github.com/kazrna-pipe/kazrna-pipe
 cd kazrna-pipe
-git checkout v1.0.0          # the version cited in the manuscript
 ```
 
 ---
@@ -141,7 +140,7 @@ nextflow run main.nf \
     --run_benchmark true
 
 # 4. Generate the figures
-Rscript scripts/R/figure_generation.R --indir results/manuscript --outdir figures/
+python3 scripts/python/make_figures.py --indir results/manuscript --outdir figures/
 python scripts/python/make_figures.py --indir results/manuscript --outdir figures/
 ```
 

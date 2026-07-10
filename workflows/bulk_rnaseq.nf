@@ -1,9 +1,12 @@
 /*
  * Bulk RNA-seq workflow.
  *
- * QC → trim → 3-way alignment/quant → 3-way DE → KEGG enrichment → concordance.
- * Three aligners and three DE methods run in parallel so that the final stage
- * can report cross-method concordance (manuscript Figure 2).
+ * QC and trimming, three-way alignment/quantification (STAR, HISAT2, Salmon),
+ * three-way differential expression (DESeq2, edgeR, limma-voom), KEGG/GO
+ * enrichment, and cross-aligner / cross-method concordance reporting (Figure 2).
+ *
+ * A single `meta` map ([id, condition]) is carried through every channel so the
+ * module interfaces remain consistent from alignment to reporting.
  */
 
 include { FASTQC          } from '../modules/fastqc.nf'
@@ -29,64 +32,76 @@ workflow BULK_RNASEQ {
 
     ch_versions = Channel.empty()
 
-    // 1. QC
+    // Quality control
     FASTQC(ch_samples)
     ch_versions = ch_versions.mix(FASTQC.out.versions)
 
-    // 2. Adapter / quality trim
+    // Adapter and quality trimming
     TRIMGALORE(ch_samples)
     ch_versions = ch_versions.mix(TRIMGALORE.out.versions)
 
     ch_trimmed = TRIMGALORE.out.reads
 
-    // 3a. STAR (alignment-based)
+    // STAR alignment and gene-level quantification
     STAR_ALIGN(ch_trimmed, "${refs_dir}/star_index")
-    FEATURECOUNTS(STAR_ALIGN.out.bam, "${refs_dir}/gencode.v44.annotation.gtf")
-    ch_star_counts = FEATURECOUNTS.out.counts.collect()
-    ch_versions = ch_versions.mix(STAR_ALIGN.out.versions, FEATURECOUNTS.out.versions)
+    ch_versions = ch_versions.mix(STAR_ALIGN.out.versions)
 
-    // 3b. HISAT2 (alignment-based)
+    ch_star_bam = STAR_ALIGN.out.bam.map { sid, cond, bam ->
+        tuple([id: sid, condition: cond], bam, file('NO_BAI'))
+    }
+    FEATURECOUNTS(ch_star_bam, "${refs_dir}/gencode.v44.annotation.gtf")
+    ch_versions = ch_versions.mix(FEATURECOUNTS.out.versions)
+
+    ch_star_counts    = FEATURECOUNTS.out.counts
+    ch_star_collected = ch_star_counts.map { meta, f -> f }.collect()
+
+    // HISAT2 alignment and quantification
     HISAT2_ALIGN(ch_trimmed, "${refs_dir}/hisat2_index")
-    ch_hisat2_counts = HISAT2_ALIGN.out.counts.collect()
     ch_versions = ch_versions.mix(HISAT2_ALIGN.out.versions)
+    ch_hisat2_collected = HISAT2_ALIGN.out.counts.collect()
 
-    // 3c. Salmon (selective alignment)
+    // Salmon selective alignment with tximport gene-level aggregation
     SALMON_QUANT(ch_trimmed, "${refs_dir}/salmon_index")
-    TXIMPORT(SALMON_QUANT.out.quant.collect(), "${refs_dir}/tx2gene.tsv")
-    ch_salmon_counts = TXIMPORT.out.counts
-    ch_versions = ch_versions.mix(SALMON_QUANT.out.versions, TXIMPORT.out.versions)
+    ch_versions = ch_versions.mix(SALMON_QUANT.out.versions)
+    TXIMPORT(
+        SALMON_QUANT.out.quant.map { sid, cond, q -> q }.collect(),
+        "${refs_dir}/tx2gene.tsv",
+        params.input
+    )
+    ch_salmon_collected = TXIMPORT.out.counts
+    ch_versions = ch_versions.mix(TXIMPORT.out.versions)
 
-    // Merge the three count matrices into one channel keyed by aligner
-    ch_counts_all = Channel.empty()
-        .mix( ch_star_counts.map   { tuple('star',   it) } )
-        .mix( ch_hisat2_counts.map { tuple('hisat2', it) } )
-        .mix( ch_salmon_counts.map { tuple('salmon', it) } )
+    // Gene-level counts from all three aligners for concordance analysis
+    ch_counts_all = ch_star_collected.map   { tuple('star',   it) }
+        .concat( ch_hisat2_collected.map { tuple('hisat2', it) } )
+        .concat( ch_salmon_collected.map { tuple('salmon', it) } )
 
-    // 4. Differential expression - run on STAR counts for the primary analysis
-    DESEQ2(ch_star_counts, ch_samples.map { it[0..1] }.collect())
-    EDGER(ch_star_counts, ch_samples.map { it[0..1] }.collect())
-    LIMMA_VOOM(ch_star_counts, ch_samples.map { it[0..1] }.collect())
+    // Differential expression with three methods on the primary STAR counts
+    DESEQ2(ch_star_counts, params.input)
+    EDGER(ch_star_counts, params.input)
+    LIMMA_VOOM(ch_star_counts, params.input)
     ch_versions = ch_versions.mix(DESEQ2.out.versions, EDGER.out.versions, LIMMA_VOOM.out.versions)
 
-    // 5. Pathway enrichment on the core (3-way intersection) DEG set
-    CLUSTERPROFILER(
-        DESEQ2.out.degs,
-        EDGER.out.degs,
-        LIMMA_VOOM.out.degs
-    )
+    // KEGG and GO enrichment on each differential expression result
+    ch_all_degs = DESEQ2.out.results
+        .mix(EDGER.out.results, LIMMA_VOOM.out.results)
+    CLUSTERPROFILER(ch_all_degs)
     ch_versions = ch_versions.mix(CLUSTERPROFILER.out.versions)
 
-    // 6. Cross-aligner and cross-method concordance reports (Figure 2A, 2B)
+    // Cross-aligner and cross-method concordance (Figure 2A, 2B)
+    ch_de_all = DESEQ2.out.results.map   { meta, f -> f }
+        .mix( EDGER.out.results.map      { meta, f -> f } )
+        .mix( LIMMA_VOOM.out.results.map { meta, f -> f } )
+        .collect()
     CONCORDANCE(
-        ch_counts_all.collect(),
-        DESEQ2.out.degs,
-        EDGER.out.degs,
-        LIMMA_VOOM.out.degs
+        ch_counts_all.map { label, f -> f }.collect(),
+        ch_de_all,
+        params.input
     )
     ch_versions = ch_versions.mix(CONCORDANCE.out.versions)
 
     emit:
-    counts   = ch_star_counts                 // primary count matrix for downstream deconv
-    degs     = DESEQ2.out.degs                // primary DEG table
+    counts   = ch_star_counts
+    degs     = DESEQ2.out.results
     versions = ch_versions
 }
