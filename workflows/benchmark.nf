@@ -1,17 +1,8 @@
 // workflows/benchmark.nf
-// Strong- and weak-scaling benchmarks on the KazHPC SLURM cluster, including
-// RAPL CPU energy counters and nvidia-smi GPU power sampling. Produces the
-// data backing Figure 4 and Table 2 in the manuscript.
-//
-// Run with: nextflow run main.nf -profile slurm --benchmark_only true
-//                                --benchmark_nodes 1,2,4,8,16
 
 include { BENCHMARK_RUN } from '../modules/benchmark_run.nf'
 
-workflow BENCHMARK {
-
-    take:
-    benchmark_input        // path to a small representative dataset
+workflow HPC_BENCHMARK {
 
     main:
     Channel
@@ -27,7 +18,7 @@ workflow BENCHMARK {
 
     BENCHMARK_RUN(
         benchmark_jobs,
-        benchmark_input
+        file(params.benchmark_input)
     )
 
     BENCHMARK_RUN.out.timings
@@ -45,4 +36,7 @@ workflow BENCHMARK {
             skip:       1,
             storeDir:   "${params.outdir}/benchmark"
         )
+
+    emit:
+    versions = BENCHMARK_RUN.out.versions
 }
