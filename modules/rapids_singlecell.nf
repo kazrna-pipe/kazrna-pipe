@@ -1,40 +1,45 @@
 // modules/rapids_singlecell.nf
 // Wraps scripts/python/rapids_singlecell_workflow.py - GPU single-cell pipeline.
+//
+// Runs ONCE over all samples: the script merges them and Harmony-integrates
+// across sample_id, so a per-sample invocation would make integration a no-op.
 
 process RAPIDS_SINGLECELL {
-    tag        "${meta.id}"
     label      'process_gpu'
-    publishDir "${params.outdir}/scrnaseq/gpu/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/scrnaseq/gpu", mode: 'copy'
 
     input:
-    tuple val(meta), path(matrix_dir)
+    path  h5_files
+    val   sample_ids
     path  marker_yaml
 
     output:
-    tuple val(meta), path("adata.h5ad"),              emit: adata
-    tuple val(meta), path("clusters.tsv"),            emit: clusters
-    tuple val(meta), path("celltype_assignments.tsv"),emit: celltypes
-    tuple val(meta), path("stage_timings.tsv"),       emit: timings
-    tuple val(meta), path("gpu_memory_trace.tsv"),    emit: gpu_trace
-    path "rapids_provenance.json",                    emit: provenance
-    path "versions.yml",                              emit: versions
+    path "adata.h5ad",       emit: adata
+    path "labels.tsv",       emit: clusters
+    path "markers.tsv",      emit: markers
+    path "umap_coords.tsv",  emit: umap
+    path "timing.tsv",       emit: timings
+    path "provenance.json",  emit: provenance
+    path "versions.yml",     emit: versions
 
     script:
     """
     python ${projectDir}/scripts/python/rapids_singlecell_workflow.py \\
-        --counts_dir    ${matrix_dir} \\
-        --sample_id     ${meta.id} \\
+        --input_h5      ${h5_files.join(',')} \\
+        --sample_ids    ${sample_ids} \\
         --markers       ${marker_yaml} \\
-        --n_features    ${params.sc_hvg_n} \\
+        --hvg_n         ${params.sc_hvg_n} \\
         --n_pcs         ${params.sc_n_pcs} \\
         --resolutions   ${params.sc_leiden_resolutions} \\
-        --out_dir       .
+        --normalization ${params.sc_normalization} \\
+        --mt_threshold  ${params.sc_mt_threshold} \\
+        --min_features  ${params.sc_min_genes} \\
+        --threads       ${task.cpus} \\
+        --outdir        .
 
     cat <<-VER > versions.yml
     "${task.process}":
-        rapids_singlecell: \$(python -c 'import rapids_singlecell as r; print(r.__version__)')
-        cudf:              \$(python -c 'import cudf; print(cudf.__version__)')
-        cuml:              \$(python -c 'import cuml; print(cuml.__version__)')
+        rapids_singlecell: \$(python -c 'import rapids_singlecell as r; print(r.__version__)' 2>/dev/null || echo "not available")
         scanpy:            \$(python -c 'import scanpy; print(scanpy.__version__)')
         anndata:           \$(python -c 'import anndata; print(anndata.__version__)')
     VER

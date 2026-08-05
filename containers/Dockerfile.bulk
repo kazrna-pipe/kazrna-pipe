@@ -1,0 +1,66 @@
+# containers/Dockerfile.bulk
+#
+# Bulk RNA-seq analysis: differential expression, concordance, enrichment,
+# deconvolution, and the counts-matrix merge step.
+#
+# Used by: MERGE_COUNTS, TXIMPORT, DESEQ2, EDGER, LIMMA_VOOM, CONCORDANCE,
+#          CLUSTERPROFILER, CELLTYPE_DE, BAYESPRISM, MUSIC, DECONV_AGREEMENT
+
+FROM bioconductor/bioconductor_docker:RELEASE_3_19
+
+LABEL org.opencontainers.image.title="kazrna-bulk" \
+      org.opencontainers.image.description="R environment for KazRNA-Pipe bulk analysis" \
+      org.opencontainers.image.source="https://github.com/ORG/kazrna-pipe" \
+      org.opencontainers.image.licenses="MIT"
+
+# System libraries needed by several R packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libxml2-dev libcurl4-openssl-dev libssl-dev libfontconfig1-dev \
+        libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev \
+        libtiff5-dev libjpeg-dev libglpk-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# CRAN packages. Versions are pinned by the Bioconductor release snapshot,
+# so the base image tag determines them.
+# 'ashr' is not called via library() anywhere; DESeq2 loads it internally when
+# lfcShrink(type = "ashr") runs, so a scan of library() calls will not find it.
+RUN R -e "install.packages(c( \
+        'optparse', 'jsonlite', 'readr', 'dplyr', 'tibble', 'tidyr', \
+        'ggplot2', 'ggrepel', 'pheatmap', 'VennDiagram', 'purrr', \
+        'Matrix', 'remotes', 'ashr' \
+    ), repos='https://cloud.r-project.org', Ncpus=4)"
+
+# Bioconductor packages
+RUN R -e "BiocManager::install(c( \
+        'DESeq2', 'edgeR', 'limma', 'tximport', 'clusterProfiler', \
+        'org.Hs.eg.db', 'ComplexHeatmap', 'SummarizedExperiment', \
+        'SingleCellExperiment', 'Biobase', 'TCGAbiolinks' \
+    ), ask=FALSE, update=FALSE, Ncpus=4)"
+
+# Dependencies of the GitHub-only deconvolution packages. MuSiC needs TOAST
+# (Bioconductor) and nnls; install_github only warns when these are absent, so
+# without this step MuSiC appears to install and then is simply not there.
+RUN R -e "BiocManager::install(c('TOAST'), ask=FALSE, update=FALSE, Ncpus=4)" && \
+    R -e "install.packages(c('nnls', 'plyr', 'gplots', 'NMF', 'snowfall', 'scran'), \
+        repos='https://cloud.r-project.org', Ncpus=4)"
+
+# Deconvolution packages, GitHub-only. Each install is followed by its own
+# check, so a failure names the package that failed rather than surfacing
+# several layers later.
+RUN R -e "remotes::install_github('Danko-Lab/BayesPrism/BayesPrism', upgrade='never'); \
+    if (!requireNamespace('BayesPrism', quietly=TRUE)) stop('BayesPrism failed to install')"
+
+RUN R -e "remotes::install_github('xuranw/MuSiC', upgrade='never'); \
+    if (!requireNamespace('MuSiC', quietly=TRUE)) stop('MuSiC failed to install')"
+
+# Fail the build rather than the pipeline if anything is missing.
+RUN R -e "pkgs <- c('optparse','jsonlite','readr','dplyr','tibble','tidyr', \
+        'ggplot2','ggrepel','pheatmap','VennDiagram','Matrix', \
+        'DESeq2','edgeR','limma','tximport','clusterProfiler','org.Hs.eg.db', \
+        'ComplexHeatmap','SummarizedExperiment','SingleCellExperiment','Biobase', \
+        'BayesPrism','MuSiC','ashr'); \
+    missing <- pkgs[!sapply(pkgs, requireNamespace, quietly=TRUE)]; \
+    if (length(missing)) stop('MISSING: ', paste(missing, collapse=', ')); \
+    cat('All packages present\n')"
+
+CMD ["R"]

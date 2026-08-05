@@ -9,7 +9,6 @@
 #     curl -sSL 'https://www.ebi.ac.uk/ena/portal/api/filereport?accession=PRJNA608223&result=read_run&fields=run_accession,sample_accession,sample_title,sample_alias,library_name&format=tsv'
 #   and merge the `sample_title` column into this sheet, replacing the
 #   `condition` value below where appropriate.
-# Per the manuscript, all 22 are treated as ESCC tumour samples.
 sample_id,run_accession,biosample,condition,tissue,fastq_1,fastq_2,strandedness,single_end
 SAMN14167823,SRR11149635,SAMN14167823,tumor,esophagus,data/raw/PRJNA608223/SRR11149635_1.fastq.gz,data/raw/PRJNA608223/SRR11149635_2.fastq.gz,reverse,false
 SAMN14167822,SRR11149636,SAMN14167822,tumor,esophagus,data/raw/PRJNA608223/SRR11149636_1.fastq.gz,data/raw/PRJNA608223/SRR11149636_2.fastq.gz,reverse,false

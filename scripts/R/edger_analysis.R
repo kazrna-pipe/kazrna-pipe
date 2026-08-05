@@ -3,7 +3,7 @@
 # edgeR differential expression analysis for KazRNA-Pipe.
 #
 # Parallels deseq2_analysis.R for cross-method concordance comparisons
-# reported in manuscript Figure 2B.
+# reported in Figure 2B.
 #
 # Bioconductor edgeR 4.2.1 - Robinson MD, McCarthy DJ, Smyth GK. Bioinformatics 2010.
 # ---------------------------------------------------------------------------
@@ -14,6 +14,7 @@ suppressPackageStartupMessages({
     library(tibble)
     library(readr)
     library(dplyr)
+    library(jsonlite)
 })
 
 opt_list <- list(
@@ -22,6 +23,8 @@ opt_list <- list(
     make_option("--outdir",  type="character", default="results/de/edger"),
     make_option("--fdr",     type="double",    default=0.05),
     make_option("--lfc",     type="double",    default=1.0),
+    make_option("--covariates", type="character", default="",
+                help="Comma-separated covariate columns; silently ignored if absent from --meta"),
     make_option("--seed",    type="integer",   default=42L)
 )
 opt <- parse_args(OptionParser(option_list=opt_list))
@@ -44,8 +47,20 @@ keep <- filterByExpr(dge, group=meta$condition)
 dge  <- dge[keep, , keep.lib.sizes=FALSE]
 dge  <- calcNormFactors(dge, method="TMM")
 
-# Quasi-likelihood F-test with age + sex covariates
-design <- model.matrix(~ age + sex + condition, data=meta)
+
+# ---- Design ----------------------------------------------------------------
+covars <- if (is.null(opt$covariates) || opt$covariates == "") {
+    character(0)
+} else {
+    trimws(strsplit(opt$covariates, ",")[[1]])
+}
+dropped <- setdiff(covars, colnames(meta))
+if (length(dropped))
+    message("Covariate(s) not present in metadata, dropped: ", paste(dropped, collapse=", "))
+covars <- intersect(covars, colnames(meta))
+design_formula <- as.formula(paste("~", paste(c(covars, "condition"), collapse=" + ")))
+message("Design: ", deparse(design_formula))
+design <- model.matrix(design_formula, data=meta)
 dge <- estimateDisp(dge, design, robust=TRUE)
 fit <- glmQLFit(dge, design, robust=TRUE)
 qlf <- glmQLFTest(fit, coef="conditiontumor")
@@ -63,3 +78,19 @@ cat("KazRNA-Pipe edgeR module\n========================\n\n")
 cat("Run datetime: ", format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"), "\n", sep="")
 print(sessionInfo()); sink()
 message("edgeR module complete.")
+
+# ---- Machine-readable provenance -------------------------------------------
+write_json(list(
+    script     = "edger_analysis.R",
+    inputs     = list(counts = opt$counts, meta = opt$meta),
+    input_md5  = list(counts = unname(tools::md5sum(opt$counts)),
+                      meta   = unname(tools::md5sum(opt$meta))),
+    design     = deparse(design_formula),
+    params     = list(fdr = opt$fdr, lfc = opt$lfc,
+                      covariates = opt$covariates, seed = opt$seed),
+    n_samples  = ncol(counts),
+    n_genes    = nrow(counts),
+    timestamp  = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
+    r_version  = R.version.string,
+    packages   = list(edgeR = as.character(packageVersion("edgeR")))
+), file.path(opt$outdir, "edger_provenance.json"), auto_unbox = TRUE, pretty = TRUE)

@@ -1,12 +1,12 @@
 // modules/celltype_de.nf
-// Cell-type-resolved DE: pseudo-bulk per cell type via DESeq2.
+
 
 process CELLTYPE_DE {
     label      'process_high_memory'
     publishDir "${params.outdir}/celltype_de", mode: 'copy'
 
     input:
-    path sc_object        // .rds with celltype + sample_id metadata
+    path sc_object      
     path sample_sheet
 
     output:

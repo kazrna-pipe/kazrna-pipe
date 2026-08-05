@@ -5,7 +5,7 @@ The script consults the *results* directory produced by Nextflow and writes each
 figure into *out*. Designed to be re-runnable: deterministic seeding, no
 network access, no hidden state.
 
-Mapping of figures → upstream artefacts (see manuscript Methods §2.5):
+Mapping of figures → upstream artefacts:
 
   Fig 1   architecture diagram (static SVG; copied from docs/architecture.svg)
   Fig 2A  cross-aligner Spearman heatmap   ← concordance/fig2a_*

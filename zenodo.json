@@ -1,0 +1,28 @@
+{
+  "title": "KazRNA-Pipe: a reproducible Nextflow workflow for integrated bulk and single-cell transcriptomic profiling",
+  "description": "<p>A containerised Nextflow workflow combining three-way bulk RNA-seq quantification (STAR, HISAT2, Salmon), three-way differential expression (DESeq2, edgeR, limma-voom), CPU and GPU single-cell processing paths, and cross-method cell-type deconvolution. Includes per-run provenance capture, pinned container digests, and continuous end-to-end testing on a synthetic fixture.</p>",
+  "upload_type": "software",
+  "license": "mit",
+  "creators": [
+    {
+      "name": "Zhumadillayeva, Ainur",
+      "affiliation": "L.N. Gumilyov Eurasian National University",
+      "orcid": "0000-0003-1042-0415"
+    }
+  ],
+  "keywords": [
+    "RNA-seq",
+    "single-cell",
+    "Nextflow",
+    "reproducibility",
+    "deconvolution",
+    "GPU acceleration"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/ORG/kazrna-pipe",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

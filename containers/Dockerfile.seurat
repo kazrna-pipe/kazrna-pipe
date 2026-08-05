@@ -1,0 +1,49 @@
+# containers/Dockerfile.seurat
+#
+# Single-cell CPU path (Seurat + Harmony).
+# Used by: SEURAT_WORKFLOW
+
+FROM satijalab/seurat:5.0.0
+
+LABEL org.opencontainers.image.title="kazrna-seurat" \
+      org.opencontainers.image.description="Seurat environment for KazRNA-Pipe CPU single-cell path" \
+      org.opencontainers.image.source="https://github.com/ORG/kazrna-pipe" \
+      org.opencontainers.image.licenses="MIT"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libhdf5-dev libxml2-dev libcurl4-openssl-dev libssl-dev \
+        libfontconfig1-dev libharfbuzz-dev libfribidi-dev \
+        libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libglpk-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN R -e "install.packages(c( \
+        'optparse', 'jsonlite', 'yaml', 'hdf5r', \
+        'readr', 'dplyr', 'tibble', 'tidyr', 'ggplot2' \
+    ), repos='https://cloud.r-project.org', Ncpus=4)"
+
+RUN R -e "install.packages(c('harmony', 'igraph', 'reticulate', 'leiden'), \
+        repos='https://cloud.r-project.org', Ncpus=4)"
+
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+
+RUN pip3 install --no-cache-dir \
+        leidenalg==0.10.2 igraph==0.11.6 numpy==1.24.4 pandas==2.0.3
+
+ENV RETICULATE_PYTHON=/usr/bin/python3
+
+
+RUN python3 -c "import leidenalg, igraph, numpy, pandas; print('python deps present')" && \
+    R -e "reticulate::py_run_string('import leidenalg, igraph, numpy, pandas'); \
+          cat('reticulate can reach every python dependency\n')"
+
+RUN R -e "pkgs <- c('Seurat','SeuratObject','harmony','leiden','reticulate','hdf5r', \
+        'optparse','jsonlite','yaml','readr','dplyr','tibble'); \
+    missing <- pkgs[!sapply(pkgs, requireNamespace, quietly=TRUE)]; \
+    if (length(missing)) stop('MISSING: ', paste(missing, collapse=', ')); \
+    cat('All packages present\n')"
+
+CMD ["R"]

@@ -11,6 +11,7 @@ suppressPackageStartupMessages({
     library(optparse)
     library(readr); library(dplyr); library(tibble); library(tidyr)
     library(ggplot2); library(VennDiagram); library(pheatmap)
+    library(jsonlite)
 })
 
 opt_list <- list(
@@ -30,7 +31,6 @@ dir.create(opt$outdir, recursive=TRUE, showWarnings=FALSE)
 read_counts <- function(path, label) {
     m <- as.matrix(read.table(path, header=TRUE, row.names=1, sep="\t",
                               check.names=FALSE))
-    # log-transform for correlation, with a small pseudocount
     log1p(m)
 }
 
@@ -75,20 +75,35 @@ message(sprintf("Figure 2A: STAR-HISAT2=%.3f STAR-Salmon=%.3f HISAT2-Salmon=%.3f
                 rho_star_hisat2, rho_star_salmon, rho_hisat2_salmon))
 
 # ---- Figure 2B: 3-way Venn across DE methods -------------------------------
-read_sig <- function(path, gene_col="gene_id", padj_col=NULL, lfc_col=NULL) {
+
+read_sig <- function(path, gene_col="gene_id") {
     df <- read_tsv(path, show_col_types=FALSE)
-    if (!is.null(padj_col) && !is.null(lfc_col)) {
-        df <- df %>% filter(.data[[padj_col]] < opt$fdr,
-                            abs(.data[[lfc_col]]) > opt$lfc)
-    }
+
+    if (!gene_col %in% colnames(df))
+        stop("No '", gene_col, "' column in ", path)
+
+    padj_col <- intersect(colnames(df), c("padj", "FDR", "adj.P.Val"))[1]
+    lfc_col  <- intersect(colnames(df), c("log2FoldChange", "logFC"))[1]
+    if (is.na(padj_col) || is.na(lfc_col))
+        stop("Could not identify adjusted-p and log-fold-change columns in ", path,
+             ". Columns present: ", paste(colnames(df), collapse=", "))
+
+    n_all <- nrow(df)
+    df <- df %>% filter(!is.na(.data[[padj_col]]),
+                        .data[[padj_col]] < opt$fdr,
+                        abs(.data[[lfc_col]]) > opt$lfc)
+    message(sprintf("  %s: %d of %d genes pass FDR < %.3g and |LFC| > %.2f (%s, %s)",
+                    basename(path), nrow(df), n_all, opt$fdr, opt$lfc,
+                    padj_col, lfc_col))
     df[[gene_col]]
 }
 
-deseq2_genes <- read_sig(opt$deseq2_degs, "gene_id")
-edger_genes  <- read_sig(opt$edger_degs,  "gene_id")
-limma_genes  <- read_sig(opt$limma_degs,  "gene_id")
+message("Applying significance filter to each DE result:")
+deseq2_genes <- read_sig(opt$deseq2_degs)
+edger_genes  <- read_sig(opt$edger_degs)
+limma_genes  <- read_sig(opt$limma_degs)
 
-# Triple intersection (the "core" 2,104 in the manuscript)
+# Triple intersection: genes called significant by all three methods.
 core <- Reduce(intersect, list(deseq2_genes, edger_genes, limma_genes))
 write_tsv(tibble(gene_id=core), file.path(opt$outdir, "core_degs_3way.tsv"))
 
@@ -119,5 +134,29 @@ summary_df <- tibble(
     )
 )
 write_tsv(summary_df, file.path(opt$outdir, "method_summary.tsv"))
+
+# ---- Provenance ------------------------------------------------------------
+write_json(list(
+    script      = "concordance_analysis.R",
+    inputs      = list(star_counts   = opt$star_counts,
+                       hisat2_counts = opt$hisat2_counts,
+                       salmon_counts = opt$salmon_counts,
+                       deseq2_degs   = opt$deseq2_degs,
+                       edger_degs    = opt$edger_degs,
+                       limma_degs    = opt$limma_degs),
+    params      = list(fdr = opt$fdr, lfc = opt$lfc),
+    n_common_genes   = length(common_genes),
+    n_common_samples = length(common_samples),
+    spearman    = list(star_hisat2   = rho_star_hisat2,
+                       star_salmon   = rho_star_salmon,
+                       hisat2_salmon = rho_hisat2_salmon),
+    n_degs      = list(deseq2 = length(deseq2_genes),
+                       edger  = length(edger_genes),
+                       limma  = length(limma_genes),
+                       core   = length(core)),
+    timestamp   = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
+    r_version   = R.version.string
+), file.path(opt$outdir, "concordance_provenance.json"),
+   auto_unbox = TRUE, pretty = TRUE)
 
 message("Concordance analysis complete. Output: ", opt$outdir)

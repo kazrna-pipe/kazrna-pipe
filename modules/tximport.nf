@@ -6,7 +6,7 @@ process TXIMPORT {
     publishDir "${params.outdir}/quant/tximport", mode: 'copy'
 
     input:
-    path quant_dirs   // collected salmon/<sample>/quant.sf trees
+    path quant_dirs 
     path tx2gene
     path sample_sheet
 

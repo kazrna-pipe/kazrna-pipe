@@ -1,11 +1,17 @@
 // modules/featurecounts.nf
 // Subread featureCounts 2.0.6 - gene-level quantification from STAR/HISAT2 BAMs.
-// Strandedness inferred upstream by infer_experiment.py (RSeQC) and passed in.
+//
+// Aliased twice in workflows/bulk_rnaseq.nf (FEATURECOUNTS_STAR and
+// FEATURECOUNTS_HISAT2) so both aligners are counted by identical code with
+// identical settings. publishDir is per-aligner to keep the outputs separate.
+
 
 process FEATURECOUNTS {
     tag        "${meta.id}"
     label      'process_medium'
-    publishDir "${params.outdir}/quant/featurecounts", mode: 'copy'
+    publishDir path: { "${params.outdir}/quant/featurecounts/${meta.aligner}" }, mode: 'copy'
+
+    container 'quay.io/biocontainers/subread:2.0.6--he4a0461_2'
 
     input:
     tuple val(meta), path(bam), path(bai)
@@ -13,7 +19,7 @@ process FEATURECOUNTS {
 
     output:
     tuple val(meta), path("${meta.id}.counts.tsv"), emit: counts
-    path  "${meta.id}.counts.summary",              emit: summary
+    path  "${meta.id}.counts.tsv.summary",          emit: summary
     path  "versions.yml",                           emit: versions
 
     script:

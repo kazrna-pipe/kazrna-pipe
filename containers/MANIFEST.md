@@ -1,65 +1,45 @@
 # Container manifest
 
-This file is the canonical record of every container image used by **kazrna-pipe v1.0.0**. Each image is pinned by its **OCI digest** (the
-content-addressable SHA-256 of the manifest). Tags are mutable and are listed
-only as a convenience.
+Images used by KazRNA-Pipe v1.1.0. Every process in the workflow
+runs inside one of these; none executes on the host.
 
-Pre-built images with their SHA-256 digests are archived at Zenodo
-(DOI: [RESERVED_DOI]); the digest column is populated from that deposit.
-Base images are already pinned by immutable OCI digest (linux/amd64) below,
-so each image builds reproducibly from the recipes in this directory.
+Built: `2026-08-05T20:33:50Z`
+Registry: `ghcr.io/kazrna-pipe`
 
-| Image           | Tag     | OCI digest (sha256)                      | Built | Size |
-| --------------- | ------- | ---------------------------------------- | ----- | ---- |
-| `kazrna/bulk`   | `1.0.0` | Deposited at Zenodo [RESERVED_DOI]       | —     | —    |
-| `kazrna/seurat` | `1.0.0` | Deposited at Zenodo [RESERVED_DOI]       | —     | —    |
-| `kazrna/rapids` | `1.0.0` | Deposited at Zenodo [RESERVED_DOI]       | —     | —    |
+| Image | Tag | Digest | Size | Base | Used by |
+|---|---|---|---|---|---|
+| kazrna-bulk | `1.1.0` | `sha256:449731ddf753317a5026161e7e05eb73d2e74186b425ca3e826204db390ab427` | 5.4 GB | bioconductor/bioconductor_docker:RELEASE_3_19 | DESEQ2, EDGER, LIMMA_VOOM, CONCORDANCE, CLUSTERPROFILER, TXIMPORT, MERGE_COUNTS, CELLTYPE_DE, BAYESPRISM, MUSIC, DECONV_AGREEMENT |
+| kazrna-seurat | `1.1.0` | `sha256:034eefc888af1f3efe22bb65821040cead37c8995a16ed731652b0765ab7cf2b` | 4.4 GB | satijalab/seurat:5.0.0 | SEURAT_WORKFLOW |
+| kazrna-py | `1.1.0` | `sha256:17bc730681ca90d649f1bf25840f4672ded381747338085e0e6645a1c63f6832` | 1.2 GB | python:3.11-slim | RAPIDS_SINGLECELL, CLUSTERING_AGREEMENT, SOFTWARE_VERSIONS |
 
-## Base images (pinned by digest)
+## Third-party images
 
-| Upstream image                       | Digest                                                                   |
-| ------------------------------------ | ------------------------------------------------------------------------ |
-| `mambaorg/micromamba:1.5.8-jammy`    | `sha256:0d2870c1159dfb0c285e1c942c68385cd1110255cc9551838a29e48793e21af1` |
-| `rocker/r-ver:4.4.1`                 | `sha256:78cb94ce2db23aaaf7b546450fcf70b5a3f2ace5a9b5fa1f87217da329211312` |
-| `rapidsai/base:24.06-cuda12.2-py3.11`| `sha256:8f0c5090edf797a31412c40d72ffd003c2a9a3a3e957529f0a044fc776c06a59` |
+Used unmodified from the BioContainers registry:
 
-## Building the Singularity/Apptainer images
-
-All three images are fully defined by the recipe files in this directory and
-rebuild deterministically on any Linux host with Singularity ≥ 3.8 or
-Apptainer ≥ 1.1. Each recipe pins its base image by the OCI digest listed above.
-
-```
-cd containers
-singularity build --fakeroot kazrna-bulk_1.0.0.sif    Singularity.bulk
-singularity build --fakeroot kazrna-seurat_1.0.0.sif  Singularity.seurat
-singularity build --fakeroot kazrna-rapids_1.0.0.sif  Singularity.rapids
-
-# If --fakeroot is unavailable, build with sudo, e.g.:
-#   sudo singularity build kazrna-bulk_1.0.0.sif Singularity.bulk
-# `apptainer` may be substituted for `singularity` on newer systems.
-```
-
-After building, record each image's SHA-256 digest and paste it into the
-OCI digest column above:
-
-```
-for sif in kazrna-bulk_1.0.0.sif kazrna-seurat_1.0.0.sif kazrna-rapids_1.0.0.sif ; do
-  echo -n "${sif}: "
-  sha256sum "${sif}"
-done
-```
+| Tool | Image | Used by |
+|---|---|---|
+| FastQC 0.12.1 | `quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0` | FASTQC |
+| Trim Galore 0.6.10 | `quay.io/biocontainers/trim-galore:0.6.10--hdfd78af_0` | TRIMGALORE |
+| STAR 2.7.11b | `quay.io/biocontainers/star:2.7.11b--h43eeafb_1` | STAR_ALIGN |
+| HISAT2 2.2.1 | `quay.io/biocontainers/hisat2:2.2.1--h87f3376_5` | HISAT2_ALIGN |
+| SAMtools 1.20 | `quay.io/biocontainers/samtools:1.20--h50ea8bc_0` | SAMTOOLS_SORT |
+| Salmon 1.10.2 | `quay.io/biocontainers/salmon:1.10.2--hecfa306_0` | SALMON_QUANT |
+| Subread 2.0.6 | `quay.io/biocontainers/subread:2.0.6--he4a0461_2` | FEATURECOUNTS |
 
 ## CIBERSORTx
 
-CIBERSORTx is **not** redistributed; its licence prohibits this. Users that
-wish to enable that arm of the deconvolution comparison must:
+CIBERSORTx requires a Stanford-registered token and its image cannot
+be redistributed. The process is skipped unless
+`params.cibersortx_token` is set.
 
-1. Register at <https://cibersortx.stanford.edu/> and request a token.
-2. Pull the official image: `docker pull cibersortx/fractions:latest`
-3. Convert to Singularity:
-`singularity build cibersortx_fractions.sif docker-daemon://cibersortx/fractions:latest`
-4. Set `params.cibersortx_token` and `params.cibersortx_email`.
+## Reproducing
 
-The pipeline runs all other analyses without CIBERSORTx; the deconvolution
-results figure (Fig 4B) will then show two methods rather than three.
+```bash
+bash containers/build.sh --version 1.1.0
+bash containers/build.sh --version 1.1.0 --push ghcr.io/ORG
+```
+
+Dockerfiles: `Dockerfile.bulk`, `Dockerfile.seurat`, `Dockerfile.py`.
+Each ends with a verification layer that fails the build if any
+required package is absent, so an image that builds is an image the
+pipeline can run in.

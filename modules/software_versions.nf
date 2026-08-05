@@ -1,7 +1,6 @@
 // modules/software_versions.nf
 // Aggregates the per-process versions.yml emissions into one report that is
-// always shipped alongside the results. Cross-referenced in the manuscript's
-// Methods section and the GitHub release notes.
+// always shipped alongside the results. 
 
 process SOFTWARE_VERSIONS {
     label      'process_single'

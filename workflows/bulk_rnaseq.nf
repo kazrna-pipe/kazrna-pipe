@@ -3,10 +3,16 @@
  *
  * QC and trimming, three-way alignment/quantification (STAR, HISAT2, Salmon),
  * three-way differential expression (DESeq2, edgeR, limma-voom), KEGG/GO
- * enrichment, and cross-aligner / cross-method concordance reporting (Figure 2).
+ * enrichment, and cross-aligner / cross-method concordance reporting.
  *
- * A single `meta` map ([id, condition]) is carried through every channel so the
- * module interfaces remain consistent from alignment to reporting.
+ * A single `meta` map is carried through every channel so the module
+ * interfaces stay consistent from alignment to reporting. It must include
+ * `strandedness` and `single_end`, which featureCounts reads, and `aligner`,
+ * which the DE modules use for their tag and publishDir.
+ *
+ * Per-sample counts are merged into one gene x sample matrix before any
+ * differential expression: DESeq2, edgeR, limma-voom and concordance all
+ * require the full matrix, not one file per sample.
  */
 
 include { FASTQC          } from '../modules/fastqc.nf'
@@ -14,7 +20,11 @@ include { TRIMGALORE      } from '../modules/trimgalore.nf'
 include { STAR_ALIGN      } from '../modules/star.nf'
 include { HISAT2_ALIGN    } from '../modules/hisat2.nf'
 include { SALMON_QUANT    } from '../modules/salmon.nf'
-include { FEATURECOUNTS   } from '../modules/featurecounts.nf'
+include { SAMTOOLS_SORT   } from '../modules/samtools_sort.nf'
+include { FEATURECOUNTS as FEATURECOUNTS_STAR   } from '../modules/featurecounts.nf'
+include { FEATURECOUNTS as FEATURECOUNTS_HISAT2 } from '../modules/featurecounts.nf'
+include { MERGE_COUNTS as MERGE_STAR   } from '../modules/merge_counts.nf'
+include { MERGE_COUNTS as MERGE_HISAT2 } from '../modules/merge_counts.nf'
 include { TXIMPORT        } from '../modules/tximport.nf'
 include { DESEQ2          } from '../modules/deseq2.nf'
 include { EDGER           } from '../modules/edger.nf'
@@ -25,7 +35,7 @@ include { CONCORDANCE     } from '../modules/concordance.nf'
 workflow BULK_RNASEQ {
 
     take:
-    ch_samples      // (sample_id, condition, fastq_1, fastq_2)
+    ch_samples
     refs_dir
 
     main:
@@ -42,66 +52,94 @@ workflow BULK_RNASEQ {
 
     ch_trimmed = TRIMGALORE.out.reads
 
-    // STAR alignment and gene-level quantification
+    // ---- STAR alignment and gene-level quantification ---------------------
     STAR_ALIGN(ch_trimmed, "${refs_dir}/star_index")
     ch_versions = ch_versions.mix(STAR_ALIGN.out.versions)
 
+    // [] is the Nextflow idiom for an absent optional path.
     ch_star_bam = STAR_ALIGN.out.bam.map { sid, cond, bam ->
-        tuple([id: sid, condition: cond], bam, file('NO_BAI'))
+        tuple([id: sid, condition: cond, aligner: 'star',
+               strandedness: params.strandedness, single_end: false], bam, [])
     }
-    FEATURECOUNTS(ch_star_bam, "${refs_dir}/gencode.v44.annotation.gtf")
-    ch_versions = ch_versions.mix(FEATURECOUNTS.out.versions)
+    FEATURECOUNTS_STAR(ch_star_bam, "${refs_dir}/gencode.v44.annotation.gtf")
+    ch_versions = ch_versions.mix(FEATURECOUNTS_STAR.out.versions)
 
-    ch_star_counts    = FEATURECOUNTS.out.counts
-    ch_star_collected = ch_star_counts.map { meta, f -> f }.collect()
+    // Merge per-sample counts into one matrix. toSortedList keeps files and
+    // IDs in the same order regardless of task completion order.
+    ch_star_sorted = FEATURECOUNTS_STAR.out.counts.toSortedList { a, b -> a[0].id <=> b[0].id }
+    MERGE_STAR(
+        'star',
+        ch_star_sorted.map { rows -> rows.collect { meta, f -> f } },
+        ch_star_sorted.map { rows -> rows.collect { meta, f -> meta.id }.join(',') }
+    )
+    ch_versions = ch_versions.mix(MERGE_STAR.out.versions)
 
-    // HISAT2 alignment and quantification
+    // The DE modules take (meta, counts); meta.aligner drives their publishDir.
+    ch_star_matrix = MERGE_STAR.out.counts.map { aligner, f -> tuple([aligner: aligner], f) }
+
+    // ---- HISAT2 alignment and quantification ------------------------------
     HISAT2_ALIGN(ch_trimmed, "${refs_dir}/hisat2_index")
     ch_versions = ch_versions.mix(HISAT2_ALIGN.out.versions)
-    ch_hisat2_collected = HISAT2_ALIGN.out.counts.collect()
 
-    // Salmon selective alignment with tximport gene-level aggregation
+    // Sort in a samtools-only container, then count with the SAME process the
+    // STAR branch uses, so the two aligners are quantified identically.
+    ch_hisat2_sam = HISAT2_ALIGN.out.sam.map { sid, cond, sam ->
+        tuple([id: sid, condition: cond, aligner: 'hisat2',
+               strandedness: params.strandedness, single_end: false], sam)
+    }
+    SAMTOOLS_SORT(ch_hisat2_sam)
+    ch_versions = ch_versions.mix(SAMTOOLS_SORT.out.versions)
+
+    FEATURECOUNTS_HISAT2(SAMTOOLS_SORT.out.bam, "${refs_dir}/gencode.v44.annotation.gtf")
+    ch_versions = ch_versions.mix(FEATURECOUNTS_HISAT2.out.versions)
+
+    ch_hisat2_sorted = FEATURECOUNTS_HISAT2.out.counts.toSortedList { a, b -> a[0].id <=> b[0].id }
+    MERGE_HISAT2(
+        'hisat2',
+        ch_hisat2_sorted.map { rows -> rows.collect { meta, f -> f } },
+        ch_hisat2_sorted.map { rows -> rows.collect { meta, f -> meta.id }.join(',') }
+    )
+    ch_versions = ch_versions.mix(MERGE_HISAT2.out.versions)
+
+    // ---- Salmon selective alignment with tximport aggregation -------------
     SALMON_QUANT(ch_trimmed, "${refs_dir}/salmon_index")
     ch_versions = ch_versions.mix(SALMON_QUANT.out.versions)
+
     TXIMPORT(
-        SALMON_QUANT.out.quant.map { sid, cond, q -> q }.collect(),
+        SALMON_QUANT.out.quant.map { sid, cond, dir -> dir }.collect(),
         "${refs_dir}/tx2gene.tsv",
         params.input
     )
-    ch_salmon_collected = TXIMPORT.out.counts
     ch_versions = ch_versions.mix(TXIMPORT.out.versions)
 
-    // Gene-level counts from all three aligners for concordance analysis
-    ch_counts_all = ch_star_collected.map   { tuple('star',   it) }
-        .concat( ch_hisat2_collected.map { tuple('hisat2', it) } )
-        .concat( ch_salmon_collected.map { tuple('salmon', it) } )
-
-    // Differential expression with three methods on the primary STAR counts
-    DESEQ2(ch_star_counts, params.input)
-    EDGER(ch_star_counts, params.input)
-    LIMMA_VOOM(ch_star_counts, params.input)
+    // ---- Differential expression on the merged STAR matrix ----------------
+    DESEQ2(ch_star_matrix, params.input)
+    EDGER(ch_star_matrix, params.input)
+    LIMMA_VOOM(ch_star_matrix, params.input)
     ch_versions = ch_versions.mix(DESEQ2.out.versions, EDGER.out.versions, LIMMA_VOOM.out.versions)
 
-    // KEGG and GO enrichment on each differential expression result
-    ch_all_degs = DESEQ2.out.results
-        .mix(EDGER.out.results, LIMMA_VOOM.out.results)
+    // KEGG and GO enrichment on each differential expression result.
+    // CLUSTERPROFILER's tag and publishDir read meta.method, which nothing
+    // else sets, so it is added here per DE method.
+    ch_all_degs = DESEQ2.out.results.map     { meta, f -> tuple(meta + [method: 'deseq2'], f) }
+        .mix( EDGER.out.results.map          { meta, f -> tuple(meta + [method: 'edger'], f) } )
+        .mix( LIMMA_VOOM.out.results.map     { meta, f -> tuple(meta + [method: 'limma_voom'], f) } )
     CLUSTERPROFILER(ch_all_degs)
     ch_versions = ch_versions.mix(CLUSTERPROFILER.out.versions)
 
-    // Cross-aligner and cross-method concordance (Figure 2A, 2B)
-    ch_de_all = DESEQ2.out.results.map   { meta, f -> f }
-        .mix( EDGER.out.results.map      { meta, f -> f } )
-        .mix( LIMMA_VOOM.out.results.map { meta, f -> f } )
-        .collect()
+    // ---- Cross-aligner and cross-method concordance (Figure 2A, 2B) -------
     CONCORDANCE(
-        ch_counts_all.map { label, f -> f }.collect(),
-        ch_de_all,
-        params.input
+        MERGE_STAR.out.counts.map   { aligner, f -> f },
+        MERGE_HISAT2.out.counts.map { aligner, f -> f },
+        TXIMPORT.out.counts,
+        DESEQ2.out.results.map      { meta, f -> f },
+        EDGER.out.results.map       { meta, f -> f },
+        LIMMA_VOOM.out.results.map  { meta, f -> f }
     )
     ch_versions = ch_versions.mix(CONCORDANCE.out.versions)
 
     emit:
-    counts   = ch_star_counts
+    counts   = MERGE_STAR.out.counts.map { aligner, f -> f }
     degs     = DESEQ2.out.results
     versions = ch_versions
 }

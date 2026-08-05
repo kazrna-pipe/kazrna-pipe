@@ -1,41 +1,47 @@
 // modules/seurat.nf
 // Wraps scripts/R/seurat_workflow.R - CPU single-cell pipeline.
+//
+// Runs ONCE over all samples: the script merges them and Harmony-integrates
+// across sample_id, so a per-sample invocation would make integration a no-op.
 
 process SEURAT_WORKFLOW {
-    tag        "${meta.id}"
     label      'process_high_memory'
-    publishDir "${params.outdir}/scrnaseq/cpu/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/scrnaseq/cpu", mode: 'copy'
 
     input:
-    tuple val(meta), path(matrix_dir)
+    path  h5_files
+    val   sample_ids
     path  marker_yaml
 
     output:
-    tuple val(meta), path("seurat_object.rds"),       emit: seurat
-    tuple val(meta), path("clusters.tsv"),            emit: clusters
-    tuple val(meta), path("celltype_assignments.tsv"),emit: celltypes
-    tuple val(meta), path("stage_timings.tsv"),       emit: timings
-    path "seurat_provenance.json",                    emit: provenance
-    path "seurat_session_info.txt",                   emit: session
-    path "versions.yml",                              emit: versions
+    path "seurat_object.rds", emit: seurat
+    path "labels.tsv",        emit: clusters
+    path "markers.tsv",       emit: markers
+    path "umap_coords.tsv",   emit: umap
+    path "timing.tsv",        emit: timings
+    path "provenance.json",   emit: provenance
+    path "versions.yml",      emit: versions
 
     script:
     """
     Rscript ${projectDir}/scripts/R/seurat_workflow.R \\
-        --counts_dir    ${matrix_dir} \\
-        --sample_id     ${meta.id} \\
+        --input_h5      ${h5_files.join(',')} \\
+        --sample_ids    ${sample_ids} \\
         --markers       ${marker_yaml} \\
-        --n_features    ${params.sc_hvg_n} \\
+        --hvg_n         ${params.sc_hvg_n} \\
         --n_pcs         ${params.sc_n_pcs} \\
         --resolutions   ${params.sc_leiden_resolutions} \\
+        --normalization ${params.sc_normalization} \\
+        --mt_threshold  ${params.sc_mt_threshold} \\
+        --min_features  ${params.sc_min_genes} \\
         --threads       ${task.cpus} \\
-        --out_dir       .
+        --outdir        .
 
     cat <<-VER > versions.yml
     "${task.process}":
-        Seurat:           \$(Rscript -e 'cat(as.character(packageVersion("Seurat")))')
-        SeuratObject:     \$(Rscript -e 'cat(as.character(packageVersion("SeuratObject")))')
-        glmGamPoi:        \$(Rscript -e 'cat(as.character(packageVersion("glmGamPoi")))')
+        Seurat:       \$(Rscript -e 'cat(as.character(packageVersion("Seurat")))')
+        SeuratObject: \$(Rscript -e 'cat(as.character(packageVersion("SeuratObject")))')
+        harmony:      \$(Rscript -e 'cat(as.character(packageVersion("harmony")))')
     VER
     """
 }

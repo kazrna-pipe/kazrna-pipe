@@ -1,52 +1,208 @@
 name: CI
+
 on:
   push:
-    branches: [main, dev]
+    branches: [main, 'fix/**']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  NXF_ANSI_LOG: false
+  NXF_ENABLE_STRICT: true
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Static checks. Seconds, no containers. Catches interface drift between the
+  # Nextflow modules and the analysis scripts before anything is executed.
+  # ---------------------------------------------------------------------------
   lint:
-    name: Lint Nextflow + R + Python
+    name: Static checks
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - uses: nf-core/setup-nextflow@v2
-        with: { version: "24.04.4" }
-      - name: nf-core lint
-        run: |
-          pip install nf-core==2.14.1
-          nf-core lint --release || true
-      - uses: r-lib/actions/setup-r@v2
-        with: { r-version: "4.4.1" }
-      - name: lintr
-        run: |
-          Rscript -e 'install.packages("lintr", repos="https://cloud.r-project.org")'
-          Rscript -e 'lintr::lint_dir("scripts/R")' || true
-      - name: ruff
-        run: |
-          pip install ruff==0.5.5
-          ruff check scripts/python || true
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Module and script interfaces agree
+        run: python3 tools/check_interfaces.py
+
+      - name: Python sources parse
+        run: |
+          for f in scripts/python/*.py tools/*.py test_data/*.py; do
+            [ -e "$f" ] || continue
+            python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f"
+          done
+
+      - name: Shell sources parse
+        run: |
+          for f in scripts/*.sh test_data/*.sh containers/*.sh bin/*.sh; do
+            [ -e "$f" ] && bash -n "$f"
+          done
+          exit 0
+
+      - name: No placeholder strings
+        run: |
+          if grep -rn "RESERVED_DOI\|FIXME\|XXX_TODO" \
+               --include="*.md" --include="*.nf" --include="*.config" . ; then
+            echo "::error::Placeholder strings remain"
+            exit 1
+          fi
+
+      - name: Documentation links resolve
+        run: |
+          fail=0
+          for p in $(grep -rhoP '\]\(\K[^)#][^)]*' --include="*.md" . | grep -v '^http'); do
+            [ -e "$p" ] || { echo "::error::Broken link: $p"; fail=1; }
+          done
+          exit $fail
+
+      - name: Every container is pinned by digest
+        run: |
+          # A tag can be repointed at different content; a digest cannot.
+          if grep -n "container\s*=\s*'ghcr.io[^@]*'" conf/containers.config; then
+            echo "::error::A ghcr.io image is pinned by tag rather than digest"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Full end-to-end run on the synthetic fixture, under both container engines.
+  # ---------------------------------------------------------------------------
   test-run:
-    name: End-to-end test profile (CPU)
+    name: End-to-end (${{ matrix.engine }})
     runs-on: ubuntu-22.04
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [docker, singularity]
+
     steps:
       - uses: actions/checkout@v4
-        with: { lfs: true }
-      - uses: nf-core/setup-nextflow@v2
-        with: { version: "24.04.4" }
-      - name: Run pipeline on test profile
-        run: nextflow run main.nf -profile test,docker --outdir results/ci
-      - name: Assert expected outputs exist
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Nextflow
         run: |
-          test -f results/ci/bulk/concordance.pdf
-          test -f results/ci/de/venn.pdf
-          test -f results/ci/sc/umap_cpu.pdf
+          curl -s https://get.nextflow.io | bash
+          sudo mv nextflow /usr/local/bin/
+          nextflow -version
+
+      - name: Install Apptainer
+        if: matrix.engine == 'singularity'
+        run: |
+          curl -sL https://github.com/apptainer/apptainer/releases/download/v1.3.4/apptainer_1.3.4_amd64.deb \
+            -o /tmp/apptainer.deb
+          sudo apt-get update
+          sudo apt-get install -y /tmp/apptainer.deb
+          apptainer --version
+
+      - name: Test fixture matches its recorded checksums
+        run: |
+          cd test_data
+          sha256sum -c SHA256SUMS
+
+      - name: Run pipeline
+        run: |
+          nextflow run main.nf \
+            -profile test,${{ matrix.engine }} \
+            --outdir results/ci
+
+      - name: Expected outputs are present and non-empty
+        run: |
+          set -euo pipefail
+          # Quantification
+          test -s results/ci/quant/merged/star.gene_counts.tsv
+          test -s results/ci/quant/merged/hisat2.gene_counts.tsv
+          test -s results/ci/quant/tximport/salmon.gene_counts.tsv
+          # Differential expression, all three methods
+          test -s results/ci/de/deseq2/star/deseq2_results.tsv
+          test -s results/ci/de/deseq2/star/deseq2_significant.tsv
+          test -s results/ci/de/deseq2/star/deseq2_provenance.json
+          test -s results/ci/de/edger/star/edger_results.tsv
+          test -s results/ci/de/limma_voom/star/limma_voom_results.tsv
+          # Cross-aligner and cross-method concordance
+          test -s results/ci/concordance/spearman_matrix.tsv
+          test -s results/ci/concordance/method_summary.tsv
+          test -s results/ci/concordance/core_degs_3way.tsv
+          test -s results/ci/concordance/venn_DESeq2_edgeR_limma.pdf
+          # Single cell
+          test -s results/ci/scrnaseq/cpu/labels.tsv
+          test -s results/ci/scrnaseq/cpu/umap_coords.tsv
+          test -s results/ci/scrnaseq/cpu/timing.tsv
+          # Provenance
+          test -s results/ci/pipeline_info/software_versions.yml
+          echo "All expected outputs present."
+
+      - name: Differential expression found the planted signal
+        run: |
+          # The fixture is generated with 40 of 200 genes differentially
+          # expressed. A run that produces an empty DEG table has executed
+          # without analysing anything, which a file-existence check alone
+          # would not catch.
+          n=$(( $(wc -l < results/ci/de/deseq2/star/deseq2_significant.tsv) - 1 ))
+          echo "DESeq2 significant genes: $n"
+          if [ "$n" -lt 5 ]; then
+            echo "::error::Only $n significant genes; expected at least 5 from the fixture"
+            exit 1
+          fi
+
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: ci-results, path: results/ci/ }
+        with:
+          name: ci-results-${{ matrix.engine }}
+          path: |
+            results/ci
+            .nextflow.log
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Two independent runs must agree on every analysis output.
+  # ---------------------------------------------------------------------------
+  determinism:
+    name: Run-to-run determinism
+    runs-on: ubuntu-22.04
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Nextflow
+        run: |
+          curl -s https://get.nextflow.io | bash
+          sudo mv nextflow /usr/local/bin/
+
+      - name: First run
+        run: nextflow run main.nf -profile test,docker --outdir results/run1 -work-dir w1
+
+      - name: Second run
+        run: nextflow run main.nf -profile test,docker --outdir results/run2 -work-dir w2
+
+      - name: Compare
+        run: |
+          pip install --quiet pandas
+          # Excludes timestamps and salmon's bias-model-dependent columns, and
+          # fails if it finds nothing to compare. See the script's docstring.
+          python3 scripts/python/diff_results.py results/run1 results/run2 --tolerance 1e-8
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: determinism-runs
+          path: |
+            results/run1
+            results/run2
+          retention-days: 30

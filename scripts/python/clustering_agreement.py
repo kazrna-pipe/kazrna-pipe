@@ -5,11 +5,8 @@
 #
 # Outputs:
 #   ari_nmi_asw_by_resolution.tsv     Main numerical table
-#   ari_nmi_asw_by_resolution.pdf     Figure 3C of the manuscript
+#   ari_nmi_asw_by_resolution.pdf     Figure 3C
 #   provenance.json
-#
-# The ARI threshold of 0.99 between two independent GPU runs (mentioned in
-# manuscript Section 4.4) is also checked here when --self_check is passed.
 # ---------------------------------------------------------------------------
 from __future__ import annotations
 
@@ -44,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--outdir",     default="results/sc/agreement")
     p.add_argument("--self_check", action="store_true",
                    help="If both label files are GPU-vs-GPU, assert ARI > 0.99 "
-                        "for every resolution (manuscript Section 4.4)")
+                        "for every resolution")
     return p.parse_args()
 
 
@@ -112,7 +109,7 @@ def main() -> None:
             )
         print("[self-check] All resolutions have ARI > 0.99. PASS.")
 
-    # ----- Plot (manuscript Figure 3C) --------
+    # ----- Plot (Figure 3C) --------
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.plot(df["resolution"], df["ARI"], "-o", label="ARI")
     ax.plot(df["resolution"], df["NMI"], "-s", label="NMI")

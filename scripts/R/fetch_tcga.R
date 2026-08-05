@@ -2,14 +2,10 @@
 # ---------------------------------------------------------------------------
 # fetch_tcga.R
 #
-# Fetches TCGA-ESCA squamous-histology samples (manuscript Section 3.1).
+# Fetches TCGA-ESCA squamous-histology samples (Section 3.1).
 # Uses TCGAbiolinks to query the GDC and STAR - Counts workflow outputs
 # for direct comparability with the in-house pipeline.
 #
-# The exact GDCquery call is preserved here verbatim because the GDC is
-# updated periodically; re-running this in 2027 may return more samples.
-# The manifest captured at the time of the manuscript is saved to
-# data/snapshots/TCGA-ESCA_gdc_manifest_<date>.tsv for forensic reference.
 # ---------------------------------------------------------------------------
 
 suppressPackageStartupMessages({
@@ -44,8 +40,7 @@ query <- GDCquery(
     experimental.strategy = "RNA-Seq"
 )
 
-# Filter on histology (squamous only) after the initial query because the
-# field has to come from the clinical metadata, not the manifest.
+
 manifest <- getResults(query) %>% as_tibble()
 clinical <- GDCquery_clinic(opt$project, type="clinical") %>% as_tibble()
 

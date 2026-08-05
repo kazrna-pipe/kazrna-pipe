@@ -4,11 +4,6 @@
 #
 # Download the filtered count matrices for a GEO Series. Used to fetch
 # GSE160269 (208,659-cell ESCC single-cell atlas) for KazRNA-Pipe.
-#
-# Mirrors the GEO series_matrix.txt and SOFT family file alongside the
-# matrices so the reviewer can verify what GEO looked like at the time
-# of the manuscript even if upstream metadata is later updated.
-#
 # Usage:
 #   bash bin/geo_fetch.sh --accession GSE160269 --target data/raw/GSE160269 --verify-sha256
 # ---------------------------------------------------------------------------

@@ -1,20 +1,20 @@
 // modules/cibersortx.nf
 // CIBERSORTx requires a registered token and the official Docker image, which
-// cannot be redistributed. This process is skipped unless params.cibersortx_token
-// is set. The published Singularity image is built from the upstream Docker
-// image at build time on the user's machine (see containers/Singularity.cibersortx).
+// cannot be redistributed. The process is only invoked when
+// params.cibersortx_token is set - that guard lives in workflows/deconvolution.nf.
+// The published Singularity image is built from the upstream Docker image at
+// build time on the user's machine (see containers/Singularity.cibersortx).
 
 process CIBERSORTX {
     label      'process_medium'
     publishDir "${params.outdir}/deconvolution/cibersortx", mode: 'copy'
-    when:      params.cibersortx_token
 
     input:
     path bulk_mixture       // TSV: genes x samples (TPM)
     path signature_matrix   // produced from sc reference
 
     output:
-    path "CIBERSORTx_Adjusted.txt", emit: fractions
+    path "CIBERSORTx_Adjusted.txt",    emit: fractions
     path "cibersortx_provenance.json", emit: provenance
     path "versions.yml",               emit: versions
 

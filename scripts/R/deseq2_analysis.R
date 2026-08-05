@@ -25,6 +25,7 @@ suppressPackageStartupMessages({
     library(tibble)
     library(readr)
     library(dplyr)
+    library(jsonlite)
 })
 
 # ---- CLI -------------------------------------------------------------------
@@ -36,6 +37,8 @@ opt_list <- list(
     make_option("--lfc",     type="double",    default=1.0),
     make_option("--contrast", type="character", default="condition,tumor,normal",
                 help="Comma-separated contrast: factor,numerator,denominator"),
+    make_option("--covariates", type="character", default="",
+                help="Comma-separated covariate columns; silently ignored if absent from --meta"),
     make_option("--seed",    type="integer",   default=42L)
 )
 opt <- parse_args(OptionParser(option_list=opt_list))
@@ -65,12 +68,25 @@ meta$condition <- factor(meta$condition, levels=c("normal", "tumor"))
 stopifnot(identical(colnames(counts), rownames(meta)))
 message(sprintf("Analysing %d samples x %d genes.", ncol(counts), nrow(counts)))
 
+
+# ---- Design ----------------------------------------------------------------
+covars <- if (is.null(opt$covariates) || opt$covariates == "") {
+    character(0)
+} else {
+    trimws(strsplit(opt$covariates, ",")[[1]])
+}
+dropped <- setdiff(covars, colnames(meta))
+if (length(dropped))
+    message("Covariate(s) not present in metadata, dropped: ", paste(dropped, collapse=", "))
+covars <- intersect(covars, colnames(meta))
+design_formula <- as.formula(paste("~", paste(c(covars, "condition"), collapse=" + ")))
+message("Design: ", deparse(design_formula))
+
 # ---- DESeq2 ----------------------------------------------------------------
-# Design includes age + sex as covariates per the manuscript Methods.
 dds <- DESeqDataSetFromMatrix(
     countData = counts,
     colData   = meta,
-    design    = ~ age + sex + condition
+    design    = design_formula
 )
 
 # Independent filtering: drop genes with mean count < 10 (a conservative cut)
@@ -85,8 +101,6 @@ contrast_parts <- strsplit(opt$contrast, ",")[[1]]
 if (length(contrast_parts) != 3L) stop("--contrast must be 'factor,num,denom'")
 res <- results(dds, contrast=contrast_parts, alpha=opt$fdr)
 
-# Shrink LFC for visualisation (apeglm). The unshrunken estimates are used
-# for the DEG count reported in the manuscript Table 2.
 res_shrunk <- lfcShrink(dds, contrast=contrast_parts, res=res, type="ashr")
 
 # ---- Save ------------------------------------------------------------------
@@ -109,7 +123,14 @@ write_tsv(sig, file.path(opt$outdir, "deseq2_significant.tsv"))
 message(sprintf("DEGs at FDR < %.3g and |log2FC| > %.2f: %d", opt$fdr, opt$lfc, nrow(sig)))
 
 # VST-normalised counts for downstream visualisation
-vst_counts <- assay(vst(dds, blind=FALSE))
+vsd <- if (nrow(dds) >= 1000) {
+    vst(dds, blind = FALSE)
+} else {
+    message("Only ", nrow(dds), " genes; using varianceStabilizingTransformation() ",
+            "instead of the vst() approximation.")
+    varianceStabilizingTransformation(dds, blind = FALSE)
+}
+vst_counts <- assay(vsd)
 vst_df <- as.data.frame(vst_counts) %>% rownames_to_column("gene_id")
 write_tsv(vst_df, file.path(opt$outdir, "deseq2_normalized.tsv"))
 
@@ -120,10 +141,27 @@ cat("=========================\n\n")
 cat("Run datetime: ", format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"), "\n", sep="")
 cat("Hostname:     ", Sys.info()["nodename"], "\n", sep="")
 cat("Command:      ", paste(commandArgs(trailingOnly=FALSE), collapse=" "), "\n\n", sep="")
-cat("Input SHA-256:\n")
+cat("Input MD5:\n")
 cat(sprintf("  counts: %s\n", tools::md5sum(opt$counts)))
 cat(sprintf("  meta:   %s\n\n", tools::md5sum(opt$meta)))
 print(sessionInfo())
 sink()
 
 message("DESeq2 module complete. Output in: ", opt$outdir)
+
+# ---- Machine-readable provenance -------------------------------------------
+write_json(list(
+    script     = "deseq2_analysis.R",
+    inputs     = list(counts = opt$counts, meta = opt$meta),
+    input_md5  = list(counts = unname(tools::md5sum(opt$counts)),
+                      meta   = unname(tools::md5sum(opt$meta))),
+    design     = deparse(design_formula),
+    params     = list(fdr = opt$fdr, lfc = opt$lfc,
+                      contrast = opt$contrast, covariates = opt$covariates,
+                      seed = opt$seed),
+    n_samples  = ncol(counts),
+    n_genes    = nrow(counts),
+    timestamp  = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
+    r_version  = R.version.string,
+    packages   = list(DESeq2 = as.character(packageVersion("DESeq2")))
+), file.path(opt$outdir, "deseq2_provenance.json"), auto_unbox = TRUE, pretty = TRUE)

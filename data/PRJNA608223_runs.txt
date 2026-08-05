@@ -1,5 +1,5 @@
 # data/PRJNA608223_runs.txt
-# 22 runs from PRJNA608223 used in the manuscript analysis.
+# 22 runs from PRJNA608223.
 # Source: ENA filereport API for accession=PRJNA608223, result=read_run.
 # Selection: first 22 runs by accession (see samples_PRJNA608223.csv).
 # Original deposit: Sharip et al. 2024, Front. Genet. 15:1249751.

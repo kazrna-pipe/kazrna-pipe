@@ -10,7 +10,7 @@ dependencies:
   - star=2.7.11a
   - hisat2=2.2.1
   - salmon=1.10.2
-  - subread=2.0.6        # featureCounts
+  - subread=2.0.6 
   # QC / trimming
   - fastqc=0.12.1
   - trim-galore=0.6.10

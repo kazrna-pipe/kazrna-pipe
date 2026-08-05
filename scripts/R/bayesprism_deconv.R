@@ -3,8 +3,8 @@
 # BayesPrism deconvolution for KazRNA-Pipe.
 #
 # Primary deconvolution method (selected on the basis of highest cross-method
-# agreement reported in the manuscript). Produces cell-type proportions for
-# manuscript Figure 4B and the cell-type-resolved DEGs used to identify the
+# agreement). Produces cell-type proportions for
+# Figure 4B and the cell-type-resolved DEGs used to identify the
 # 842 epithelial-specific DEGs reported in Figure 4C.
 #
 # BayesPrism 2.2 - Chu T, Wang Z, Pe'er D, Danko CG. Nat Cancer 2022.

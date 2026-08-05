@@ -1,10 +1,6 @@
 #!/usr/bin/env Rscript
 # scripts/R/celltype_pseudobulk_de.R
 #
-# Aggregates single-cell counts to pseudo-bulk per (sample × cell type) and
-# runs DESeq2 tumour vs normal contrast for every cell type with ≥ 3 samples
-# per condition. Produces the 842 epithelial-specific DEGs reported in the
-# manuscript, and the Fig 5D volcano.
 
 suppressPackageStartupMessages({
     library(optparse)
@@ -51,7 +47,6 @@ for (ct in unique(md$celltype)) {
     samples_ct <- md[cells_ct, "sample_id"]
     cond_ct    <- md[cells_ct, "condition"]
 
-    # Aggregate to sample-level pseudo-bulk
     pb <- sapply(split(seq_along(samples_ct), samples_ct),
                  function(idx) rowSums(counts_ct[, idx, drop = FALSE]))
     pb <- as.matrix(pb)

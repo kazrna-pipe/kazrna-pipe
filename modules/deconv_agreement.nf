@@ -7,7 +7,7 @@ process DECONV_AGREEMENT {
     input:
     path bayesprism_theta
     path music_proportions
-    path cibersortx_fractions   // may be empty channel value
+    path cibersortx_fractions
 
     output:
     path "deconv_correlation.tsv", emit: corr

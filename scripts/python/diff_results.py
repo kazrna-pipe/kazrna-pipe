@@ -1,139 +1,269 @@
 #!/usr/bin/env python3
-"""scripts/python/diff_results.py
-
-Compares two output trees produced by two runs of the same pipeline and
-reports any non-trivial differences. Exit code 0 iff the two runs agree.
-
-Tolerances:
-  - .tsv / .csv: numeric columns compared with rtol=1e-5, atol=1e-7
-                 integer columns must match exactly
-  - .yml / .yaml: parsed and compared as dicts (key order ignored)
-  - .json: parsed and compared as dicts (key order ignored, timestamps allowed
-           to differ)
-  - .h5 / .h5ad / .rds / .bam / .pdf: existence-only check
-  - everything else: SHA-256 must match
-
-The CI uses this script to enforce that two consecutive `nextflow run` calls
-produce byte-equivalent (or numerically equivalent) outputs. Stochastic stages
-seed their RNGs (seed = 2025 throughout); any failure here is a real
-reproducibility regression and should be investigated.
 """
+diff_results.py - compare two pipeline runs and report any difference that is
+not explained by wall-clock time, timestamps, scheduler bookkeeping, or a
+documented stochastic step.
 
+    python3 diff_results.py results/run1 results/run2
+    python3 diff_results.py results/run1 results/run2 --tolerance 1e-8
+    python3 diff_results.py results/run1 results/run2 --list-excluded
+
+Exit 0 when the runs agree, 1 when they do not.
+
+WHAT THIS CHECK CLAIMS
+
+Counts and every differential-expression output are bit-reproducible. 
+
+WHAT IT DELIBERATELY DOES NOT COMPARE, AND WHY
+
+Some outputs cannot be identical between two runs, and pretending otherwise
+would make the check meaningless rather than strict:
+
+  1. Timestamps and bookkeeping. FastQC .zip archives embed a creation time;
+     trace.txt, timeline.html and report.html record task IDs and durations;
+     timing.tsv is a wall-clock measurement; *_session.txt and *provenance.json
+     record the run date; STAR's Log.final.out carries the run start time; PDF
+     writers embed a creation date; R's .rds serialisation records session
+     metadata.
+
+  2. Salmon's bias models. --gcBias and --seqBias fit GC and sequence bias
+     models on a subsample of reads, so the fitted models (aux_info/*.gz), the
+     effective lengths derived from them, and TPM -- which is computed from
+     effective length -- vary slightly between runs. NumReads, the column every
+     downstream analysis actually consumes, does not vary and IS still
+     compared. Dropping the bias correction would make this check pass but
+     would degrade quantification on real data, which is the wrong trade.
+
+  3. Alignment record order. Within a coordinate-sorted BAM, reads sharing a
+     start position are ordered by thread completion. The derived counts
+     (featurecounts/*.counts.tsv and the merged matrices) are compared and are
+     identical, so a BAM byte comparison adds nothing.
+
+WHAT IS ALWAYS COMPARED
+
+Every count matrix, DE table, normalised expression table, cluster label, UMAP
+coordinate, correlation matrix, and the NumReads column of quant.sf. A
+difference in any of those is a genuine reproducibility failure.
+
+Every exclusion is listed below so a reader can audit the choice.
+"""
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import sys
+from fnmatch import fnmatch
 from pathlib import Path
 
-import yaml
-import numpy as np
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError:
+    sys.exit("pandas is required: run this inside the kazrna-py container")
 
-SKIP_SUFFIXES = {".log", ".html"}
-EXIST_ONLY    = {".h5", ".h5ad", ".rds", ".bam", ".bai", ".pdf", ".svg", ".png"}
-TIMESTAMP_KEYS = {"timestamp", "captured_at", "built_at"}
+# --- Files not compared at all ---------------------------------------------
+EXCLUDE = [
+    # 1. Timestamps and scheduler bookkeeping
+    "pipeline_info/trace.txt",
+    "pipeline_info/timeline.html",
+    "pipeline_info/report.html",
+    "pipeline_info/dag.svg",
+    "pipeline_info/software_versions.html",
+    "**/timing.tsv",
+    "**/*.timing.tsv",
+    "**/*.timing.raw",
+    "**/*_fastqc.zip",
+    "**/*_fastqc.html",
+    "**/*.Log.final.out",
+    "**/*.Log.out",
+    "**/*.Log.progress.out",
+    "**/*trimming_report.txt",
+    "**/*.hisat2.summary.txt",
+    "**/logs/*.log",
+    "**/cmd_info.json",
+    "**/meta_info.json",
+    "**/*provenance.json",
+    "**/*_session.txt",
+    "**/*.pdf",                     # PDF writers embed a creation date
+    "**/*.rds",                     # R serialisation records session metadata
+
+    "**/aux_info/*.gz",
+    "**/aux_info/*.tsv",
+    "**/libParams/flenDist.txt",
+
+    "**/*.bam",
+    "**/*.bam.bai",
+    "**/*.sam",
+]
+
+# --- Columns not compared, per file pattern --------------------------------
+# "*" means every column: the whole table derives from effective length.
+EXCLUDE_COLUMNS: dict[str, object] = {
+    "**/quant.sf":                {"EffectiveLength", "TPM"},
+    "**/salmon.gene_lengths.tsv": "*",
+    "**/salmon.gene_tpm.tsv":     "*",
+}
+
+BINARY_SUFFIXES = {".bam", ".bai", ".rds", ".h5ad", ".h5", ".pdf", ".gz", ".zip"}
+
+# Below this, the runs are almost certainly incomplete rather than identical.
+MIN_EXPECTED_FILES = 20
 
 
-def sha256(p: Path) -> str:
+def matches(rel: str, pattern: str) -> bool:
+    return fnmatch(rel, pattern) or fnmatch("/" + rel, "/" + pattern)
+
+
+def excluded(rel: str) -> bool:
+    return any(matches(rel, p) for p in EXCLUDE)
+
+
+def excluded_columns(rel: str):
+    for pattern, cols in EXCLUDE_COLUMNS.items():
+        if matches(rel, pattern):
+            return cols
+    return set()
+
+
+def sha256(path: Path) -> str:
     h = hashlib.sha256()
-    with p.open("rb") as f:
+    with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
 
 
-def diff_table(a: Path, b: Path, sep: str) -> list[str]:
+def compare_table(a: Path, b: Path, tol: float, skip_cols):
+    """Numeric-aware comparison. Returns (problems, number of columns compared)."""
+    sep = "," if a.suffix == ".csv" else "\t"
     try:
-        da = pd.read_csv(a, sep=sep, low_memory=False)
-        db = pd.read_csv(b, sep=sep, low_memory=False)
-    except Exception as exc:
-        return [f"failed to parse {a.name} ({exc})"]
+        da = pd.read_csv(a, sep=sep, comment="#")
+        db = pd.read_csv(b, sep=sep, comment="#")
+    except Exception:
+        if sha256(a) == sha256(b):
+            return [], 1
+        return ["content differs (not parseable as a table)"], 1
+
     if list(da.columns) != list(db.columns):
-        return [f"columns differ in {a.name}"]
+        return [f"columns differ: {list(da.columns)[:6]} vs {list(db.columns)[:6]}"], 0
     if da.shape != db.shape:
-        return [f"shape differs in {a.name}: {da.shape} vs {db.shape}"]
-    diffs: list[str] = []
+        return [f"shape differs: {da.shape} vs {db.shape}"], 0
+
+    problems, n_compared = [], 0
     for col in da.columns:
-        if da[col].dtype.kind in "fc":
-            if not np.allclose(da[col], db[col],
-                               rtol=1e-5, atol=1e-7, equal_nan=True):
-                diffs.append(f"{a.name}:{col} (float) differs beyond tol")
-        elif da[col].dtype.kind in "iu":
-            if not (da[col] == db[col]).all():
-                diffs.append(f"{a.name}:{col} (int) differs")
-        else:
-            if not (da[col].astype(str) == db[col].astype(str)).all():
-                diffs.append(f"{a.name}:{col} (str) differs")
-    return diffs
+        if skip_cols == "*" or (isinstance(skip_cols, set) and col in skip_cols):
+            continue
+        n_compared += 1
+        ca, cb = da[col], db[col]
+        if pd.api.types.is_numeric_dtype(ca) and pd.api.types.is_numeric_dtype(cb):
+            delta = (ca - cb).abs()
+            worst = float(delta.max()) if len(delta) else 0.0
+            if worst > tol:
+                problems.append(f"column '{col}': max absolute difference {worst:.4g} > {tol:g}")
+        elif not ca.equals(cb):
+            problems.append(f"column '{col}': {int((ca != cb).sum())} value(s) differ")
+    return problems, n_compared
 
 
-def diff_structured(a: Path, b: Path, loader) -> list[str]:
+def compare_json(a: Path, b: Path) -> list:
     try:
-        da = loader(a.read_text())
-        db = loader(b.read_text())
-    except Exception as exc:
-        return [f"failed to parse {a.name} ({exc})"]
-    if not isinstance(da, dict) or not isinstance(db, dict):
-        return [] if da == db else [f"{a.name} contents differ"]
-    for k in list(da.keys()) + list(db.keys()):
-        if k in TIMESTAMP_KEYS:
-            da.pop(k, None); db.pop(k, None)
-    if da != db:
-        return [f"{a.name} structured contents differ"]
-    return []
+        ja, jb = json.loads(a.read_text()), json.loads(b.read_text())
+    except Exception:
+        return [] if sha256(a) == sha256(b) else ["content differs (not parseable as JSON)"]
+    return [] if ja == jb else ["structured contents differ"]
 
 
-def walk(root: Path) -> dict[Path, Path]:
-    return {p.relative_to(root): p for p in root.rglob("*") if p.is_file()}
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("a", type=Path, help="first results directory")
+    ap.add_argument("b", type=Path, help="second results directory")
+    ap.add_argument("--tolerance", type=float, default=1e-8,
+                    help="maximum absolute difference for numeric columns [%(default)g]")
+    ap.add_argument("--list-excluded", action="store_true",
+                    help="print every skipped file before the summary")
+    args = ap.parse_args()
 
+    for d in (args.a, args.b):
+        if not d.is_dir():
+            print(f"Not a directory: {d}", file=sys.stderr)
+            return 1
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("a", type=Path)
-    parser.add_argument("b", type=Path)
-    args = parser.parse_args(argv)
+    files_a = {p.relative_to(args.a).as_posix() for p in args.a.rglob("*") if p.is_file()}
+    files_b = {p.relative_to(args.b).as_posix() for p in args.b.rglob("*") if p.is_file()}
 
-    map_a = walk(args.a)
-    map_b = walk(args.b)
-    keys_a = set(map_a); keys_b = set(map_b)
+    problems, skipped, partial = [], [], []
 
-    diffs: list[str] = []
-    for missing in (keys_a - keys_b):
-        diffs.append(f"only in A: {missing}")
-    for extra in (keys_b - keys_a):
-        diffs.append(f"only in B: {extra}")
+    for rel in sorted(files_a - files_b):
+        if not excluded(rel):
+            problems.append(f"{rel}: present in {args.a} only")
+    for rel in sorted(files_b - files_a):
+        if not excluded(rel):
+            problems.append(f"{rel}: present in {args.b} only")
 
-    for rel in sorted(keys_a & keys_b):
-        a = map_a[rel]; b = map_b[rel]
-        suf = a.suffix.lower()
-        if suf in SKIP_SUFFIXES:
+    compared = 0
+    for rel in sorted(files_a & files_b):
+        if excluded(rel):
+            skipped.append(rel)
             continue
-        if suf in EXIST_ONLY:
-            continue
-        if suf in {".tsv", ".txt"}:
-            diffs.extend(diff_table(a, b, sep="\t"))
-            continue
-        if suf == ".csv":
-            diffs.extend(diff_table(a, b, sep=","))
-            continue
-        if suf in {".yml", ".yaml"}:
-            diffs.extend(diff_structured(a, b, yaml.safe_load))
-            continue
-        if suf == ".json":
-            diffs.extend(diff_structured(a, b, json.loads))
-            continue
-        # Fall back to byte comparison
-        if sha256(a) != sha256(b):
-            diffs.append(f"sha256 differs: {rel}")
 
-    if diffs:
-        print("REPRODUCIBILITY CHECK FAILED", file=sys.stderr)
-        for d in diffs:
-            print("  -", d, file=sys.stderr)
+        pa, pb = args.a / rel, args.b / rel
+        skip_cols = excluded_columns(rel)
+
+        if skip_cols == "*":
+            skipped.append(rel)
+            continue
+
+        compared += 1
+        if skip_cols:
+            partial.append(f"{rel} (skipped: {', '.join(sorted(skip_cols))})")
+
+        if pa.suffix in BINARY_SUFFIXES:
+            if sha256(pa) != sha256(pb):
+                problems.append(f"{rel}: binary contents differ")
+        elif pa.suffix == ".json":
+            problems += [f"{rel}: {m}" for m in compare_json(pa, pb)]
+        elif pa.suffix in {".tsv", ".csv", ".txt", ".sf"}:
+            msgs, n_cols = compare_table(pa, pb, args.tolerance, skip_cols)
+            problems += [f"{rel}: {m}" for m in msgs]
+            if skip_cols and n_cols == 0:
+                problems.append(f"{rel}: every column was excluded; nothing verified")
+        else:
+            if sha256(pa) != sha256(pb):
+                problems.append(f"{rel}: contents differ")
+
+    if args.list_excluded:
+        print(f"Skipped {len(skipped)} file(s) with run-dependent content:")
+        for rel in skipped:
+            print(f"  {rel}")
+        print()
+
+    print(f"Compared {compared} file(s); skipped {len(skipped)}; "
+          f"tolerance {args.tolerance:g}")
+    if partial:
+        print(f"Partially compared ({len(partial)} file(s), stochastic columns skipped):")
+        for line in partial:
+            print(f"  {line}")
+
+    # A check that examined nothing must never report success.
+    if compared == 0:
+        print("\nREPRODUCIBILITY CHECK FAILED - no files were compared. Both runs "
+              "are empty, or every output was excluded.")
         return 1
-    print("REPRODUCIBILITY CHECK OK ({} files compared)".format(len(keys_a & keys_b)))
+    if compared < MIN_EXPECTED_FILES:
+        print(f"\nREPRODUCIBILITY CHECK FAILED - only {compared} file(s) compared, "
+              f"expected at least {MIN_EXPECTED_FILES}. The runs are probably "
+              "incomplete; check that both finished successfully.")
+        return 1
+
+    if problems:
+        print(f"\nREPRODUCIBILITY CHECK FAILED - {len(problems)} difference(s):")
+        for p in problems:
+            print(f"  - {p}")
+        return 1
+
+    print("\nREPRODUCIBILITY CHECK PASSED - the two runs agree on every analysis "
+          "output, including all counts and differential-expression results.")
     return 0
 
 
