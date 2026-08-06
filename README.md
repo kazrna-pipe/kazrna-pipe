@@ -1,5 +1,7 @@
 # KazRNA-Pipe
 
+[![CI](https://github.com/kazrna-pipe/kazrna-pipe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kazrna-pipe/kazrna-pipe/actions/workflows/ci.yml)
+
 **GPU-Accelerated, Reproducible Nextflow Workflow for Integrated Bulk and Single-Cell Transcriptomic Profiling**
 
 [![Nextflow](https://img.shields.io/badge/nextflow-%E2%89%A523.10.0-23aa62.svg)](https://www.nextflow.io/)
