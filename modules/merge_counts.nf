@@ -17,7 +17,7 @@ process MERGE_COUNTS {
 
     output:
     tuple val(aligner), path("${aligner}.gene_counts.tsv"), emit: counts
-    path  "versions.yml",                                   emit: versions
+    path  "${aligner}.versions.yml",                                   emit: versions
 
     script:
     """
@@ -26,7 +26,7 @@ process MERGE_COUNTS {
         --sample_ids ${sample_ids} \\
         --out        ${aligner}.gene_counts.tsv
 
-    cat <<-VER > versions.yml
+    cat <<-VER > ${aligner}.versions.yml
     "${task.process}":
         R: \$(R --version | head -1 | grep -oP '[0-9.]+' | head -1)
     VER
