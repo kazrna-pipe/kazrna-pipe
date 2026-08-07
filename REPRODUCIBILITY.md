@@ -1,113 +1,116 @@
 # Reproducibility guide
 
-This document tells you exactly how to make every quantitative result, on three independently-tested environments (a SLURM cluster, an AWS EC2 instance, and a local Ubuntu workstation). If you encounter a discrepancy, please open an issue at https://github.com/kazrna-pipe/kazrna-pipe/issues with the output of `nextflow log` and the contents of `results/<run>/pipeline_info/software_versions.yml`.
+This document describes how to reproduce the results of KazRNA-Pipe, and states
+precisely what is and is not expected to reproduce exactly.
+
+If you encounter a discrepancy, please open an issue at
+https://github.com/kazrna-pipe/kazrna-pipe/issues with the contents of
+`results/<run>/pipeline_info/software_versions.yml` and the relevant
+`work/<hash>/.command.err`.
 
 ---
 
-## 0. What a successful reproduction looks like
+## 0. Start here: verify the pipeline runs
 
-After running every step in this guide, you will have:
-
-| Manuscript figure | Output file (under `results/manuscript/`)                          | Approximate runtime on KazHPC |
-|-------------------|--------------------------------------------------------------------|-------------------------------|
-| Figure 2A         | `bulk/concordance/spearman_matrix.pdf` + `.tsv`                     | 6 h (all 22 samples × 3 aligners) |
-| Figure 2B         | `de/venn_DESeq2_edgeR_limma.pdf` + per-method TSVs                  | 12 min                        |
-| Figure 2C         | `de/tcga_vs_kazakh_jaccard.pdf` + `tcga_kazakh_shared_genes.tsv`    | 1.5 h (TCGA download + DESeq2) |
-| Figure 2D         | `bulk/resource_per_sample.pdf` + `nextflow_trace.tsv`               | Generated alongside Fig 2A    |
-| Figure 3A         | `sc/timing/per_step_walltime.pdf` + `per_step_walltime.tsv`         | 2.5 h (CPU+GPU full atlas)    |
-| Figure 3B         | `sc/timing/scaling_vs_n_cells.pdf`                                  | 4 h (subsampled benchmark)    |
-| Figure 3C         | `sc/agreement/leiden_ari_nmi_asw.pdf`                               | 30 min                        |
-| Figure 3D         | `sc/umaps/umap_cpu.pdf`, `umap_gpu.pdf`                             | Generated alongside Fig 3A    |
-| Figure 4A         | `deconv/method_agreement.pdf` + `cross_method_correlations.tsv`     | 8 h (CIBERSORTx is the slow one) |
-| Figure 4B         | `deconv/sample_proportions.pdf` + `bayesprism_proportions.tsv`      | Generated alongside Fig 4A    |
-| Figure 4C         | `deconv/celltype_specific_degs.pdf` + per-compartment DEG TSVs      | 1 h                           |
-| Figure 4D         | `deconv/effect_size_amplification.pdf`                              | Generated alongside Fig 4C    |
-| Figure 5          | `benchmark/strong_scaling.pdf`, `weak_scaling.pdf`                  | 18 h (full scaling sweep)     |
-
-Total wall-clock on the reference KazHPC configuration: **~9 hours** for everything except the strong-scaling sweep, which is run separately and adds another 18 h.
-
----
-
-## 1. Environment setup
-
-### 1.1 Install Nextflow and a container runtime
-
-```bash
-# Nextflow
-curl -s https://get.nextflow.io | bash
-mv nextflow /usr/local/bin/
-nextflow -version    # must print 23.10.0 or higher
-
-# Singularity (preferred) or Docker
-singularity --version  # 3.11.0 used in the manuscript
-```
-
-### 1.2 Clone and check out the manuscript tag
+Before downloading any real data, confirm the pipeline runs on your machine.
+This takes about 90 seconds and requires no GPU:
 
 ```bash
 git clone https://github.com/kazrna-pipe/kazrna-pipe.git
 cd kazrna-pipe
-git checkout v1.0.0
-git rev-parse HEAD
+git checkout v1.1.0
+
+nextflow run main.nf -profile test,docker --outdir results/check
 ```
 
-### 1.3 Validate the test profile first
+Substitute `-profile test,singularity` if you use Apptainer. Both are exercised
+by continuous integration on every push, so both are expected to work.
 
-Before downloading 280 GB of data, confirm that the pipeline runs at all on your machine:
+This runs on a **synthetic fixture** — 200 artificial genes, reads generated
+*in silico*, no patient-derived sequence. Its purpose is to exercise every
+process in the workflow quickly, and to demonstrate that the pipeline completes
+end to end. See [test_data/README.md](test_data/README.md).
 
-```bash
-nextflow run main.nf -profile test,singularity
-```
+If this does not complete, stop here: there is no point attempting a full
+reproduction until it does.
 
-This must complete in ≤ 15 minutes and produce `results/test/pipeline_report.html`. If it does not, stop here and open an issue - there is no point trying the full reproduction until the test profile passes.
+### What continuous integration already verifies
+
+Every push to `main` runs:
+
+1. **Interface check** — every module's options and declared outputs match the script it invokes (`tools/check_interfaces.py`).
+2. **End-to-end run under Docker**, asserting the expected outputs exist, are non-empty, and that the fixture's planted differential signal is recovered.
+3. **End-to-end run under Apptainer**, the same assertions.
+4. **Determinism** — two independent runs compared numerically.
+
+The result of the most recent run is shown by the badge on the repository front
+page, and the full logs and output artifacts are retained for 30 days.
 
 ---
 
-## 2. Fetching the input data
+## 1. Environment
+
+| Component | Required |
+| --- | --- |
+| Nextflow | ≥ 24.04 (the `resourceLimits` directive is used) |
+| Java | 17+ |
+| Docker or Apptainer | either |
+
+```bash
+curl -s https://get.nextflow.io | bash
+sudo mv nextflow /usr/local/bin/
+nextflow -version
+```
+
+No separate step is needed to obtain the software environment: every process
+declares a container, and the three analysis images are pinned by SHA-256
+digest in `conf/containers.config`. A run either obtains exactly those images
+or fails.
+
+---
+
+## 2. Obtaining the input data
 
 ### 2.1 Bulk RNA-seq (PRJNA608223)
 
 ```bash
-bash bin/sra_fetch.sh \
-    --accession PRJNA608223 \
-    --target data/raw/PRJNA608223 \
-    --verify-sha256
+bash bin/sra_fetch.sh --accession PRJNA608223 --target data/raw/PRJNA608223
 ```
 
-This script:
+The 22 run accessions are listed in `data/samples_PRJNA608223.csv`, which is
+also the samplesheet the pipeline reads. Each run is fetched with `prefetch`,
+converted with `fasterq-dump --split-files`, and compressed.
 
-1. Resolves PRJNA608223 to its 44 run accessions (`SRR11242833`…`SRR11242876`) via the NCBI EUtils API. The exact run list is also stored in `data/PRJNA608223_runs.txt`.
-2. Downloads each run with `prefetch --max-size 100g`, then converts to paired-end FASTQ with `fasterq-dump --split-files --threads 8`.
-3. Compresses with `pigz -p 8`.
-4. Writes `data/raw/PRJNA608223/sha256.manifest`.
-5. Compares against `data/PRJNA608223.sha256` (the manifest at the time of the manuscript, **frozen on 2025-11-03**). If any hash differs, the script exits with a non-zero code and a per-file diff.
-
-Expected size on disk: 142 GB.
+**This cohort contains tumour samples only.** It includes no adjacent normal
+tissue. See `data/README.md` for what that means for the analyses that can be
+performed with it.
 
 ### 2.2 Single-cell atlas (GSE160269)
 
 ```bash
-bash bin/geo_fetch.sh \
-    --accession GSE160269 \
-    --target data/raw/GSE160269 \
-    --verify-sha256
+bash bin/geo_fetch.sh --accession GSE160269 --target data/raw/GSE160269
 ```
 
-This downloads the filtered count matrices (`*_filtered_feature_bc_matrix.tar.gz` for each of the 60 patients) directly from GEO FTP. The mirrored snapshot of the GEO `series_matrix.txt` from the download date is in `data/snapshots/GSE160269_series_matrix_2025-11-03.txt.gz` so that you can verify what GEO looked like at the time of the manuscript even if it is later updated.
-
-Expected size on disk: 88 GB.
+A snapshot of the GEO series matrix from the download date is kept under
+`data/snapshots/`, so that the state of the record at the time of analysis can
+be inspected even if GEO is later updated.
 
 ### 2.3 TCGA-ESCA
 
 ```bash
-Rscript scripts/R/fetch_tcga.R \
-    --project TCGA-ESCA \
-    --histology "Squamous Cell Neoplasms" \
-    --workflow "STAR - Counts" \
-    --outdir data/raw/TCGA-ESCA
+bash bin/fetch_tcga_esca.sh data/tcga_esca
 ```
 
-The exact `TCGAbiolinks::GDCquery` call is recorded in the script. The query was issued on **2025-11-04**; the GDC manifest returned at that time is mirrored at `data/snapshots/TCGA-ESCA_gdc_manifest_2025-11-04.tsv`. Re-running the query later may return more samples (the GDC is updated periodically); restrict your run to the manifest snapshot to reproduce the manuscript exactly.
+This queries the GDC API directly; the filters are written into the script, so
+the cohort definition is part of the repository rather than a web session that
+cannot be replayed. It retrieves GDC-harmonised STAR gene counts (open access)
+together with the sample metadata needed to distinguish tumour from adjacent
+normal.
+
+The underlying TCGA sequence is controlled-access (dbGaP phs000178). The TCGA
+arm of the analysis therefore uses GDC's harmonised counts rather than passing
+through this pipeline; this is stated so that the two arms are not assumed to
+share a processing path.
 
 ### 2.4 Reference annotation
 
@@ -115,118 +118,138 @@ The exact `TCGAbiolinks::GDCquery` call is recorded in the script. The query was
 bash bin/prepare_references.sh --target data/refs
 ```
 
-Downloads GRCh38.p14 primary assembly and GENCODE v44 annotation from EBI, builds STAR (sjdbOverhang 100), HISAT2, and Salmon (decoy-aware) indices. All download URLs and SHA-256 manifests are listed in `bin/prepare_references.sh` and the resulting index files are hashed into `data/refs/sha256.manifest`.
+Downloads GRCh38.p14 and GENCODE v44 and builds the STAR, HISAT2 and Salmon
+(decoy-aware) indices. **Building the STAR index requires roughly 32 GB of
+RAM.**
 
 ---
 
-## 3. End-to-end pipeline run
+## 3. Running the pipeline
 
-### 3.1 On a SLURM cluster
+### On a SLURM cluster
 
 ```bash
 nextflow run main.nf \
     -profile slurm,singularity \
     -resume \
-    --input          data/samples_PRJNA608223.csv \
-    --sc_input       data/samples_GSE160269.csv \
-    --tcga_input     data/samples_TCGA_ESCA.csv \
-    --refs_dir       data/refs \
-    --outdir         results/manuscript \
-    --run_benchmark  true \
-    -with-trace      results/manuscript/trace.tsv \
-    -with-report     results/manuscript/report.html \
-    -with-timeline   results/manuscript/timeline.html
+    --input    data/samples_PRJNA608223.csv \
+    --sc_input data/samples_GSE160269.csv \
+    --refs_dir data/refs \
+    --outdir   results/manuscript
 ```
 
-`-resume` lets you re-enter the workflow without recomputing already-completed processes; this matters because the full run takes ~9 hours.
+`-resume` re-enters the workflow without recomputing completed processes.
 
-### 3.2 On AWS EC2
+### On AWS
 
 ```bash
-nextflow run main.nf \
-    -profile aws,docker \
+nextflow run main.nf -profile aws,docker \
     --input data/samples_PRJNA608223.csv \
     --sc_input data/samples_GSE160269.csv \
-    --refs_dir s3://kazrna-pipe-refs/GRCh38.p14_GENCODE_v44 \
-    --outdir s3://kazrna-pipe-results/manuscript
+    --refs_dir s3://<your-bucket>/GRCh38.p14_GENCODE_v44 \
+    --outdir   s3://<your-bucket>/results
 ```
 
-The `aws` profile is documented in `conf/aws.config`. A `c5.24xlarge` instance with one attached G5 GPU completed the full pipeline in 11h 14m at a total cost of $94.20 (us-east-2, on-demand pricing, November 2025).
-
-### 3.3 On a local workstation with one GPU
+### On a single workstation
 
 ```bash
-nextflow run main.nf \
-    -profile local,singularity \
-    --max_memory 64.GB \
-    --max_cpus 16 \
+nextflow run main.nf -profile local,docker \
+    --max_memory 64.GB --max_cpus 16 \
     --input data/samples_PRJNA608223.csv \
-    --sc_input data/samples_GSE160269.csv \
     --outdir results/manuscript
 ```
 
-A workstation with 64 GB RAM and a single A100 will run the bulk module fine but cannot fit the full GSE160269 single-cell run in memory. Use `--sc_subsample 60000` to verify the GPU code path on a feasible subset.
+A workstation with 64 GB will run the bulk module but cannot hold the full
+GSE160269 single-cell analysis in memory. Use `--sc_subsample` to exercise the
+single-cell path on a feasible subset.
 
 ---
 
-## 4. Generating the figures
+## 4. What reproduces exactly, and what does not
+
+This is the part worth reading carefully. Claiming more exactness than the
+software delivers would be worse than claiming less.
+
+### Bit-reproducible between runs
+
+- Gene-level counts from STAR and HISAT2 (`featureCounts` output and the merged matrices)
+- Salmon `NumReads`
+- tximport gene-level counts
+- All DESeq2, edgeR and limma-voom result tables
+- Cross-method concordance output
+- Single-cell cluster labels and UMAP coordinates
+
+### Not bit-reproducible, by design
+
+- **Salmon `EffectiveLength` and `TPM`.** `--gcBias` and `--seqBias` fit their models on a subsample of reads, so the fitted effective length varies slightly between runs, and TPM varies with it. `NumReads` is unaffected, and `NumReads` is what every downstream analysis in this pipeline consumes. Dropping the bias correction would make the check pass at the cost of the quantification, which is the wrong trade.
+- **Alignment record order within BAM files.** With more than one thread, reads with equal coordinates are written in thread-completion order. The derived counts are identical.
+- **Timestamps** in reports, logs, provenance JSON and serialised R objects.
+
+### Verifying determinism yourself
 
 ```bash
-Rscript scripts/R/figure_generation.R \
-    --indir results/manuscript \
-    --outdir figures/
+nextflow run main.nf -profile test,docker --outdir results/run1 -work-dir w1
+nextflow run main.nf -profile test,docker --outdir results/run2 -work-dir w2
 
-python scripts/python/make_figures.py \
-    --indir results/manuscript \
-    --outdir figures/
+docker run --rm -v "$PWD":/w -w /w \
+  ghcr.io/kazrna-pipe/kazrna-py@sha256:17bc730681ca90d649f1bf25840f4672ded381747338085e0e6645a1c63f6832 \
+  python3 scripts/python/diff_results.py results/run1 results/run2 --tolerance 1e-8
 ```
 
-Each figure script writes a `<figure>.provenance.json` alongside the PDF that records:
-
-- The input file paths and their SHA-256 hashes.
-- The script version (`git describe`).
-- The R / Python / library versions actually loaded at runtime.
-- The exact `argparse` arguments.
-
-If you regenerate a figure and the JSON differs from `figures/expected/<figure>.provenance.json`, that is your first diagnostic.
+The exclusion list, and the reasoning behind each entry, is documented in the
+script's own docstring. The check fails if it finds nothing to compare, so it
+cannot pass vacuously on two empty runs.
 
 ---
 
-## 5. Verifying the results
+## 5. Provenance recorded by each run
 
-Numerical reproducibility is checked against `results/expected/` (committed to the repository):
+Every run writes into `results/<run>/pipeline_info/`:
 
-```bash
-bash bin/verify_results.sh --results results/manuscript --expected results/expected
-```
+| File | Contents |
+| --- | --- |
+| `software_versions.yml` | Every tool version actually invoked, collected from the processes themselves |
+| `trace.txt` | Per-task resource usage, exit status and duration |
+| `report.html` | Execution report |
+| `timeline.html` | Task timeline |
+| `dag.svg` | The workflow graph as executed |
 
-The script compares:
-
-1. **Bit-identical** for: STAR count matrices, HISAT2 count matrices, Salmon quant.sf, DESeq2 result tables, edgeR result tables, limma-voom result tables.
-2. **Numerically close** (relative error < 1e-6) for: BayesPrism cell-type proportions (Markov chain stochastic).
-3. **ARI ≥ 0.99** between rapids-singlecell cluster labels across runs (cuGraph parallel Leiden has non-deterministic node visiting order). This was documented in Section 4.4 of the manuscript.
-
-Any deviation outside these tolerances is a reproducibility failure and should be reported.
-
----
-
-## 6. Known caveats and platform-specific notes
-
-- **CIBERSORTx** requires an academic token from https://cibersortx.stanford.edu/. The pipeline auto-detects whether `params.cibersortx_token` is set; if not, deconvolution proceeds with BayesPrism and MuSiC only and Figure 4A is generated as a 2-method comparison.
-- **rapids-singlecell** versions ≤ 0.10.9 had a known bug in PCA initialisation on H100. The pipeline pins 0.10.10 specifically to avoid this. If you build a custom container, do not downgrade.
-- **GPU clustering** uses cuGraph's parallel Leiden, whose community-merging order is non-deterministic across runs. Cluster *IDs* will differ between runs but cluster *boundaries* are preserved (ARI > 0.99). All downstream analyses use ARI / NMI / ASW, which are invariant to label permutation.
-- **STAR index loading** is the dominant I/O step at scale. The strong-scaling plateau beyond 16 nodes in Figure 5 is reproducible across all three test environments.
-- **GENCODE v44 vs v45**: re-running with v45 changes 12 DEGs in the core 2,104 set. We recommend pinning to v44 for an exact reproduction of the manuscript.
+Individual analysis steps additionally write `*_provenance.json` recording their
+input paths and checksums, the parameters they were given, the resolved design
+formula where applicable, and the package versions loaded at runtime.
 
 ---
 
-## 7. Reporting problems
+## 6. Obtaining the exact software used
 
-Open an issue at https://github.com/kazrna-pipe/kazrna-pipe/issues including:
+Each release is archived at Zenodo:
 
-1. Output of `nextflow -version`, `singularity --version`, `uname -a`.
-2. The contents of `results/<run>/pipeline_info/software_versions.yml`.
-3. The Nextflow `.nextflow.log` (or the relevant tail).
-4. Which step failed and the contents of `work/<hash>/.command.log`.
+- All versions: https://doi.org/10.5281/zenodo.21832631
+- v1.1.0: https://doi.org/10.5281/zenodo.21832632
 
-We commit to responding to reproducibility issues within five working days.
+To reproduce a specific analysis, use the version recorded in that run's
+`pipeline_info/` rather than the current `main` branch, which will have moved
+on.
+
+---
+
+## 7. Known caveats
+
+- **CIBERSORTx** requires an academic token from https://cibersortx.stanford.edu/. Without `params.cibersortx_token`, deconvolution proceeds with BayesPrism and MuSiC.
+- **The GPU single-cell path** falls back to Scanpy when `rapids_singlecell` cannot be imported, so the code path can be exercised without a GPU. Timings from that fallback are not GPU timings.
+- **Enrichment analysis** requires identifiers that map to Entrez. On the synthetic fixture nothing maps, and the step records `status: skipped` in its provenance file rather than failing — this is the intended behaviour, and the same applies to any dataset whose identifiers are not Ensembl gene IDs.
+- **GENCODE version.** Results are annotation-dependent. Pin to v44 to match the reference run.
+
+---
+
+## 8. Reporting problems
+
+Open an issue including:
+
+1. `nextflow -version` and your container engine version
+2. `results/<run>/pipeline_info/software_versions.yml`
+3. The failing task's `work/<hash>/.command.err` and `.command.sh`
+
+`.command.sh` is usually the most informative: it shows the command line after
+variable interpolation, so a missing parameter or an unexpected argument is
+immediately visible.

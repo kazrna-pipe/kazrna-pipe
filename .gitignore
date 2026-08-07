@@ -56,3 +56,9 @@ docs/_site/
 .cibersortx_token
 *.pem
 *.key
+
+# Downloaded TCGA counts. Regenerate with bin/fetch_tcga_esca.sh; the query
+# filters are in the script, so the cohort definition is version-controlled
+# even though the data is not.
+data/tcga_esca/*/
+data/tcga_esca/gdc_manifest.tsv

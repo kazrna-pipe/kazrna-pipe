@@ -1,0 +1,15 @@
+{
+  "filters": {
+    "op": "and",
+    "content": [
+      {"op": "in", "content": {"field": "cases.project.project_id", "value": ["TCGA-ESCA"]}},
+      {"op": "in", "content": {"field": "data_category",   "value": ["Transcriptome Profiling"]}},
+      {"op": "in", "content": {"field": "data_type",       "value": ["Gene Expression Quantification"]}},
+      {"op": "in", "content": {"field": "analysis.workflow_type", "value": ["STAR - Counts"]}},
+      {"op": "in", "content": {"field": "access",          "value": ["open"]}}
+    ]
+  },
+  "format": "TSV",
+  "size": "2000",
+  "return_type": "manifest"
+}

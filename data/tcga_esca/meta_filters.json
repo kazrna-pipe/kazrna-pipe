@@ -1,0 +1,13 @@
+{
+  "filters": {
+    "op": "and",
+    "content": [
+      {"op": "in", "content": {"field": "cases.project.project_id", "value": ["TCGA-ESCA"]}},
+      {"op": "in", "content": {"field": "data_type", "value": ["Gene Expression Quantification"]}},
+      {"op": "in", "content": {"field": "analysis.workflow_type", "value": ["STAR - Counts"]}}
+    ]
+  },
+  "fields": "file_id,file_name,cases.submitter_id,cases.samples.submitter_id,cases.samples.sample_type,cases.demographic.gender,cases.demographic.age_at_index,cases.diagnoses.primary_diagnosis,cases.diagnoses.tumor_stage",
+  "format": "TSV",
+  "size": "2000"
+}

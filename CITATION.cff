@@ -5,16 +5,26 @@ abstract: >-
   A containerised Nextflow workflow combining three-way bulk RNA-seq
   quantification (STAR, HISAT2, Salmon), three-way differential expression
   (DESeq2, edgeR, limma-voom), CPU and GPU single-cell processing paths, and
-  cross-method cell-type deconvolution, with per-run provenance capture and
-  continuous end-to-end testing.
+  cross-method cell-type deconvolution. Every process runs in a container
+  pinned by immutable digest, per-run provenance is recorded, and continuous
+  integration verifies end-to-end execution under both Docker and Apptainer
+  together with run-to-run determinism.
 type: software
 authors:
   - given-names: Ainur
     family-names: Zhumadillayeva
     orcid: "https://orcid.org/0000-0003-1042-0415"
     affiliation: L.N. Gumilyov Eurasian National University
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21832631
+    description: Concept DOI, always resolves to the latest version
+  - type: doi
+    value: 10.5281/zenodo.21832632
+    description: Version DOI for v1.1.0
+doi: 10.5281/zenodo.21832631
 version: 1.1.0
-date-released: "2026-08-04"
+date-released: "2026-08-07"
 license: MIT
 repository-code: "https://github.com/kazrna-pipe/kazrna-pipe"
 keywords:
