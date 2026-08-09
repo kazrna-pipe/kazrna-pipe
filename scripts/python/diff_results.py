@@ -14,38 +14,6 @@ WHAT THIS CHECK CLAIMS
 
 Counts and every differential-expression output are bit-reproducible. 
 
-WHAT IT DELIBERATELY DOES NOT COMPARE, AND WHY
-
-Some outputs cannot be identical between two runs, and pretending otherwise
-would make the check meaningless rather than strict:
-
-  1. Timestamps and bookkeeping. FastQC .zip archives embed a creation time;
-     trace.txt, timeline.html and report.html record task IDs and durations;
-     timing.tsv is a wall-clock measurement; *_session.txt and *provenance.json
-     record the run date; STAR's Log.final.out carries the run start time; PDF
-     writers embed a creation date; R's .rds serialisation records session
-     metadata.
-
-  2. Salmon's bias models. --gcBias and --seqBias fit GC and sequence bias
-     models on a subsample of reads, so the fitted models (aux_info/*.gz), the
-     effective lengths derived from them, and TPM -- which is computed from
-     effective length -- vary slightly between runs. NumReads, the column every
-     downstream analysis actually consumes, does not vary and IS still
-     compared. Dropping the bias correction would make this check pass but
-     would degrade quantification on real data, which is the wrong trade.
-
-  3. Alignment record order. Within a coordinate-sorted BAM, reads sharing a
-     start position are ordered by thread completion. The derived counts
-     (featurecounts/*.counts.tsv and the merged matrices) are compared and are
-     identical, so a BAM byte comparison adds nothing.
-
-WHAT IS ALWAYS COMPARED
-
-Every count matrix, DE table, normalised expression table, cluster label, UMAP
-coordinate, correlation matrix, and the NumReads column of quant.sf. A
-difference in any of those is a genuine reproducibility failure.
-
-Every exclusion is listed below so a reader can audit the choice.
 """
 from __future__ import annotations
 

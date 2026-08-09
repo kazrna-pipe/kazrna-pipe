@@ -16,7 +16,7 @@ set -euo pipefail
 OUT_DIR="data/refs"
 THREADS=8
 RELEASE=44
-GENOME_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${RELEASE}/GRCh38.p14.genome.fa.gz"
+GENOME_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${RELEASE}/GRCh38.primary_assembly.genome.fa.gz"
 GTF_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${RELEASE}/gencode.v${RELEASE}.primary_assembly.annotation.gtf.gz"
 TX_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${RELEASE}/gencode.v${RELEASE}.transcripts.fa.gz"
 MANIFEST="data/snapshots/references/frozen_manifest.tsv"
@@ -55,7 +55,7 @@ download_and_check () {
     echo "[$(date -Is)] verified: $file"
 }
 
-GENOME_SHA=$(awk -F'\t' '$1=="GRCh38.p14.genome.fa.gz"{print $4}'                          "../../${MANIFEST}")
+GENOME_SHA=$(awk -F'\t' '$1=="GRCh38.primary_assembly.genome.fa.gz"{print $4}'                          "../../${MANIFEST}")
 GTF_SHA=$(   awk -F'\t' '$1=="gencode.v44.primary_assembly.annotation.gtf.gz"{print $4}'   "../../${MANIFEST}")
 TX_SHA=$(    awk -F'\t' '$1=="gencode.v44.transcripts.fa.gz"{print $4}'                    "../../${MANIFEST}")
 
@@ -63,7 +63,7 @@ download_and_check "$GENOME_URL" "$GENOME_SHA"
 download_and_check "$GTF_URL"    "$GTF_SHA"
 download_and_check "$TX_URL"     "$TX_SHA"
 
-gunzip -k -f GRCh38.p14.genome.fa.gz                              # → GRCh38.p14.genome.fa
+gunzip -k -f GRCh38.primary_assembly.genome.fa.gz                              # → GRCh38.primary_assembly.genome.fa
 gunzip -k -f gencode.v44.primary_assembly.annotation.gtf.gz       # → ...gtf
 gunzip -k -f gencode.v44.transcripts.fa.gz                        # → gencode.v44.transcripts.fa
 
@@ -82,18 +82,19 @@ echo "[$(date -Is)] STAR genomeGenerate"
 STAR --runThreadN "${THREADS}" \
      --runMode genomeGenerate \
      --genomeDir star_index \
-     --genomeFastaFiles GRCh38.p14.genome.fa \
+     --genomeFastaFiles GRCh38.primary_assembly.genome.fa \
      --sjdbGTFfile      gencode.v44.primary_assembly.annotation.gtf \
-     --sjdbOverhang     99
+     --sjdbOverhang     99 \
+     --limitGenomeGenerateRAM 60000000000
 
 # ----- HISAT2 ------------------------------------------------------------------
 echo "[$(date -Is)] hisat2-build"
-hisat2-build -p "${THREADS}" GRCh38.p14.genome.fa hisat2_index/GRCh38_v44
+hisat2-build -p "${THREADS}" GRCh38.primary_assembly.genome.fa hisat2_index/GRCh38_v44
 
 # ----- Salmon (decoy-aware) ----------------------------------------------------
 echo "[$(date -Is)] Salmon decoy + index"
-grep '^>' GRCh38.p14.genome.fa | sed 's/^>//;s/ .*//' > decoys.txt
-cat gencode.v44.transcripts.fa GRCh38.p14.genome.fa > gentrome.fa
+grep '^>' GRCh38.primary_assembly.genome.fa | sed 's/^>//;s/ .*//' > decoys.txt
+cat gencode.v44.transcripts.fa GRCh38.primary_assembly.genome.fa > gentrome.fa
 salmon index -t gentrome.fa -d decoys.txt -k 31 \
              -p "${THREADS}" -i salmon_index --gencode
 

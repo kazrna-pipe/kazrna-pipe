@@ -64,8 +64,6 @@ bulk      <- bulk[shared_genes, , drop=FALSE]
 sc_counts <- sc_counts[, shared_genes, drop=FALSE]
 
 # ---- 4. Build the Prism object --------------------------------------------
-# BayesPrism takes a malignant-vs-stromal split. For ESCC we treat
-# 'Epithelial' as the malignant compartment if present.
 malignant_label <- if ("Epithelial" %in% cell_types) "Epithelial" else NA
 
 prism <- new.prism(
