@@ -13,8 +13,6 @@
 #   deseq2_normalized.tsv    Library-size-normalised counts (VST).
 #   deseq2_session.txt       sessionInfo() output.
 #
-# This script is invoked by modules/deseq2.nf inside the container
-#   quay.io/biocontainers/bioconductor-deseq2:1.44.0--r44hdfd78af_0
 #
 # Bioconductor DESeq2 1.44.0 - Love MI, Huber W, Anders S. Genome Biol 2014.
 # ---------------------------------------------------------------------------
@@ -52,7 +50,7 @@ counts <- as.matrix(read.table(opt$counts, header=TRUE, row.names=1,
 storage.mode(counts) <- "integer"
 
 message("Reading metadata: ", opt$meta)
-meta <- read_csv(opt$meta, show_col_types=FALSE) %>%
+meta <- read_csv(opt$meta, show_col_types=FALSE, comment="#") %>%
     as.data.frame() %>%
     { rownames(.) <- .$sample_id; . }
 

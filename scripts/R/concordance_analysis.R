@@ -23,15 +23,16 @@ opt_list <- list(
     make_option("--limma_degs",    type="character"),
     make_option("--outdir",        type="character", default="results/bulk/concordance"),
     make_option("--fdr",           type="double", default=0.05),
-    make_option("--lfc",           type="double", default=1.0)
+    make_option("--lfc",           type="double", default=1.0),
+    make_option("--counts_only",   action="store_true", default=FALSE),
+    make_option("--min_detected",  type="integer", default=1)
 )
 opt <- parse_args(OptionParser(option_list=opt_list))
 dir.create(opt$outdir, recursive=TRUE, showWarnings=FALSE)
 
 read_counts <- function(path, label) {
-    m <- as.matrix(read.table(path, header=TRUE, row.names=1, sep="\t",
-                              check.names=FALSE))
-    log1p(m)
+    as.matrix(read.table(path, header=TRUE, row.names=1, sep="\t",
+                         check.names=FALSE))
 }
 
 # ---- Figure 2A: Spearman correlation across the three aligners -------------
@@ -47,12 +48,30 @@ hm <- hm[common_genes, common_samples, drop=FALSE]
 qm <- qm[common_genes, common_samples, drop=FALSE]
 
 # Per-sample Spearman across aligners, averaged
-sample_rho <- function(a, b) {
-    sapply(seq_len(ncol(a)), function(i) cor(a[, i], b[, i], method="spearman"))
+sample_rho <- function(a, b, filter_detected=TRUE) {
+    sapply(seq_len(ncol(a)), function(i) {
+        keep <- if (filter_detected) (a[, i] >= opt$min_detected) |
+                                     (b[, i] >= opt$min_detected)
+                else rep(TRUE, nrow(a))
+        cor(log1p(a[keep, i]), log1p(b[keep, i]), method="spearman")
+    })
 }
-rho_star_hisat2 <- mean(sample_rho(sm, hm))
-rho_star_salmon <- mean(sample_rho(sm, qm))
+
+n_detected <- sapply(seq_len(ncol(sm)), function(i)
+    sum((sm[, i] >= opt$min_detected) | (hm[, i] >= opt$min_detected) |
+        (qm[, i] >= opt$min_detected)))
+message(sprintf("Genes with >= %d count in at least one quantifier: median %d of %d",
+                opt$min_detected, median(n_detected), length(common_genes)))
+
+rho_star_hisat2   <- mean(sample_rho(sm, hm))
+rho_star_salmon   <- mean(sample_rho(sm, qm))
 rho_hisat2_salmon <- mean(sample_rho(hm, qm))
+
+rho_unfiltered <- c(star_hisat2   = mean(sample_rho(sm, hm, FALSE)),
+                    star_salmon   = mean(sample_rho(sm, qm, FALSE)),
+                    hisat2_salmon = mean(sample_rho(hm, qm, FALSE)))
+message(sprintf("All genes:      STAR-HISAT2=%.3f STAR-Salmon=%.3f HISAT2-Salmon=%.3f",
+                rho_unfiltered[1], rho_unfiltered[2], rho_unfiltered[3]))
 
 cor_mat <- matrix(
     c(1.0,             rho_star_hisat2,  rho_star_salmon,
@@ -69,10 +88,33 @@ pheatmap(cor_mat, display_numbers=TRUE, fontsize_number=11,
          color=colorRampPalette(c("#ffffff","#2e75b6"))(50),
          breaks=seq(0.9, 1, length.out=51),
          cluster_rows=FALSE, cluster_cols=FALSE,
-         main="Cross-aligner gene-level Spearman ρ")
+         main="Cross-aligner gene-level Spearman rho")
 dev.off()
 message(sprintf("Figure 2A: STAR-HISAT2=%.3f STAR-Salmon=%.3f HISAT2-Salmon=%.3f",
                 rho_star_hisat2, rho_star_salmon, rho_hisat2_salmon))
+
+if (opt$counts_only) {
+    write_json(list(
+        script      = "concordance_analysis.R",
+        counts_only = TRUE,
+        inputs      = list(star_counts   = opt$star_counts,
+                           hisat2_counts = opt$hisat2_counts,
+                           salmon_counts = opt$salmon_counts),
+        min_detected     = opt$min_detected,
+        n_common_genes   = length(common_genes),
+        n_common_samples = length(common_samples),
+        n_detected_median = median(n_detected),
+        spearman    = list(star_hisat2   = rho_star_hisat2,
+                           star_salmon   = rho_star_salmon,
+                           hisat2_salmon = rho_hisat2_salmon),
+        spearman_all_genes = as.list(rho_unfiltered),
+        timestamp   = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
+        r_version   = R.version.string
+    ), file.path(opt$outdir, "concordance_provenance.json"),
+       auto_unbox = TRUE, pretty = TRUE)
+    message("Counts-only concordance complete. Output: ", opt$outdir)
+    quit(save="no", status=0)
+}
 
 # ---- Figure 2B: 3-way Venn across DE methods -------------------------------
 
@@ -150,6 +192,8 @@ write_json(list(
     spearman    = list(star_hisat2   = rho_star_hisat2,
                        star_salmon   = rho_star_salmon,
                        hisat2_salmon = rho_hisat2_salmon),
+    spearman_all_genes = as.list(rho_unfiltered),
+    min_detected = opt$min_detected,
     n_degs      = list(deseq2 = length(deseq2_genes),
                        edger  = length(edger_genes),
                        limma  = length(limma_genes),

@@ -75,10 +75,19 @@ workflow {
 
     // 1. Bulk RNA-seq
     if (!params.skip_bulk) {
+        // splitCsv does not skip '#' lines
         ch_bulk_samples = Channel
-            .fromPath(params.input)
+            .of( file(params.input).readLines()
+                     .findAll { it.trim() && !it.trim().startsWith('#') }
+                     .join('\n') )
             .splitCsv(header: true)
-            .map { row -> tuple(row.sample_id, row.condition, file(row.fastq_1), file(row.fastq_2)) }
+            .map { row ->
+                // featureCounts reads params.strandedness, not this column
+                if (row.strandedness && row.strandedness != params.strandedness) {
+                    error "Sample ${row.sample_id}: samplesheet strandedness '${row.strandedness}' disagrees with params.strandedness '${params.strandedness}'."
+                }
+                tuple(row.sample_id, row.condition, file(row.fastq_1), file(row.fastq_2))
+            }
 
         BULK_RNASEQ(ch_bulk_samples, params.refs_dir)
         versions_ch = versions_ch.mix(BULK_RNASEQ.out.versions)

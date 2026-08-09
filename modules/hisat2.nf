@@ -1,20 +1,5 @@
 /*
  * HISAT2 v2.2.1 - alignment only.
- *
- * Graph-based alignment as an independent cross-check on STAR. The high
- * Spearman rho between STAR and HISAT2 in the manuscript (0.974) is partly an
- * artefact of their shared design philosophy; both are spliced alignment-based
- * methods. The Salmon comparison is the more informative one.
- *
- * This process runs only hisat2. Sorting is done by SAMTOOLS_SORT and counting
- * by the shared FEATURECOUNTS process, so that:
- *   - each process needs only a single-tool container, which is what
- *     BioContainers publishes;
- *   - HISAT2 and STAR both flow through the *same* counting process, so their
- *     concordance reflects the aligners rather than differing count settings.
- *
- * The index basename is derived from the *.1.ht2 file present in the index
- * directory rather than hard-coded, so any index naming convention works.
  */
 
 process HISAT2_ALIGN {
@@ -23,23 +8,21 @@ process HISAT2_ALIGN {
     publishDir "${params.outdir}/bulk/hisat2", mode: params.publish_dir_mode,
                pattern: "*.summary.txt"
 
-    container 'quay.io/biocontainers/hisat2:2.2.1--h87f3376_5'
+    container 'community.wave.seqera.io/library/hisat2_samtools@sha256:c34a62b3e0c61c75a10f869eaf75061a464d2177c32bb697ac864db4039a2ff4'
 
     input:
     tuple val(sample_id), val(condition), path(fastq_1), path(fastq_2)
     path  hisat2_index
 
     output:
-    // The SAM is not published: with -p > 1 its record order depends on thread
-    // completion order, so two runs differ byte-for-byte while containing the
-    // same alignments. SAMTOOLS_SORT publishes the coordinate-sorted BAM,
-    // which is deterministic and is the artefact worth keeping.
-    tuple val(sample_id), val(condition), path("${sample_id}.sam"), emit: sam
+    tuple val(sample_id), val(condition), path("${sample_id}.bam"), path("${sample_id}.bam.bai"), emit: bam
     path "${sample_id}.hisat2.summary.txt",                         emit: summary
     path 'versions.yml',                                            emit: versions
 
     script:
     """
+    set -o pipefail
+
     INDEX_BASE=\$(ls ${hisat2_index}/*.1.ht2 | head -1 | sed 's/\\.1\\.ht2\$//')
     echo "Using HISAT2 index basename: \${INDEX_BASE}"
 
@@ -51,11 +34,14 @@ process HISAT2_ALIGN {
         --summary-file ${sample_id}.hisat2.summary.txt \\
         --new-summary \\
         --seed ${params.seed} \\
-        -S ${sample_id}.sam
+        | samtools sort -@ 4 -m 2G -o ${sample_id}.bam -
+
+    samtools index -@ 4 ${sample_id}.bam
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         hisat2: \$( hisat2 --version | head -1 | awk '{print \$3}' )
+        samtools: \$( samtools --version | head -1 | awk '{print \$2}' )
     END_VERSIONS
     """
 }

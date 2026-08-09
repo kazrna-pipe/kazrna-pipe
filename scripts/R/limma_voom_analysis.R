@@ -31,13 +31,21 @@ set.seed(opt$seed)
 
 counts <- as.matrix(read.table(opt$counts, header=TRUE, row.names=1,
                                sep="\t", check.names=FALSE))
-meta <- read_csv(opt$meta, show_col_types=FALSE) %>%
+meta <- read_csv(opt$meta, show_col_types=FALSE, comment="#") %>%
     as.data.frame() %>% { rownames(.) <- .$sample_id; . }
 
 common <- intersect(colnames(counts), rownames(meta))
 counts <- counts[, common, drop=FALSE]
 meta   <- meta[common, , drop=FALSE]
 meta$condition <- factor(meta$condition, levels=c("normal", "tumor"))
+
+observed <- levels(droplevels(meta$condition))
+if (length(observed) < 2)
+    stop("Contrast variable 'condition' has a single observed level ('",
+         paste(observed, collapse=", "), "') across ", nrow(meta),
+         " samples. Differential expression requires at least two levels. ",
+         "Refusing to fit a rank-deficient model.")
+
 
 dge <- DGEList(counts=counts)
 keep <- filterByExpr(dge, group=meta$condition)

@@ -24,7 +24,7 @@ opt <- parse_args(OptionParser(option_list = list(
 
 stopifnot(!is.null(opt$quant_root), !is.null(opt$tx2gene), !is.null(opt$samples))
 
-samples <- read_csv(opt$samples,  show_col_types = FALSE)
+samples <- read_csv(opt$samples,  show_col_types = FALSE, comment = "#")
 tx2gene <- read_tsv(opt$tx2gene,  show_col_types = FALSE,
                     col_names = c("tx_id", "gene_id", "gene_name"))
 

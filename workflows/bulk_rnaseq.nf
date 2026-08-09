@@ -4,15 +4,6 @@
  * QC and trimming, three-way alignment/quantification (STAR, HISAT2, Salmon),
  * three-way differential expression (DESeq2, edgeR, limma-voom), KEGG/GO
  * enrichment, and cross-aligner / cross-method concordance reporting.
- *
- * A single `meta` map is carried through every channel so the module
- * interfaces stay consistent from alignment to reporting. It must include
- * `strandedness` and `single_end`, which featureCounts reads, and `aligner`,
- * which the DE modules use for their tag and publishDir.
- *
- * Per-sample counts are merged into one gene x sample matrix before any
- * differential expression: DESeq2, edgeR, limma-voom and concordance all
- * require the full matrix, not one file per sample.
  */
 
 include { FASTQC          } from '../modules/fastqc.nf'
@@ -20,7 +11,6 @@ include { TRIMGALORE      } from '../modules/trimgalore.nf'
 include { STAR_ALIGN      } from '../modules/star.nf'
 include { HISAT2_ALIGN    } from '../modules/hisat2.nf'
 include { SALMON_QUANT    } from '../modules/salmon.nf'
-include { SAMTOOLS_SORT   } from '../modules/samtools_sort.nf'
 include { FEATURECOUNTS as FEATURECOUNTS_STAR   } from '../modules/featurecounts.nf'
 include { FEATURECOUNTS as FEATURECOUNTS_HISAT2 } from '../modules/featurecounts.nf'
 include { MERGE_COUNTS as MERGE_STAR   } from '../modules/merge_counts.nf'
@@ -81,16 +71,12 @@ workflow BULK_RNASEQ {
     HISAT2_ALIGN(ch_trimmed, "${refs_dir}/hisat2_index")
     ch_versions = ch_versions.mix(HISAT2_ALIGN.out.versions)
 
-    // Sort in a samtools-only container, then count with the SAME process the
-    // STAR branch uses, so the two aligners are quantified identically.
-    ch_hisat2_sam = HISAT2_ALIGN.out.sam.map { sid, cond, sam ->
+    ch_hisat2_bam = HISAT2_ALIGN.out.bam.map { sid, cond, bam, bai ->
         tuple([id: sid, condition: cond, aligner: 'hisat2',
-               strandedness: params.strandedness, single_end: false], sam)
+               strandedness: params.strandedness, single_end: false], bam, bai)
     }
-    SAMTOOLS_SORT(ch_hisat2_sam)
-    ch_versions = ch_versions.mix(SAMTOOLS_SORT.out.versions)
 
-    FEATURECOUNTS_HISAT2(SAMTOOLS_SORT.out.bam, "${refs_dir}/gencode.v44.annotation.gtf")
+    FEATURECOUNTS_HISAT2(ch_hisat2_bam, "${refs_dir}/gencode.v44.annotation.gtf")
     ch_versions = ch_versions.mix(FEATURECOUNTS_HISAT2.out.versions)
 
     ch_hisat2_sorted = FEATURECOUNTS_HISAT2.out.counts.toSortedList { a, b -> a[0].id <=> b[0].id }
@@ -108,19 +94,21 @@ workflow BULK_RNASEQ {
     TXIMPORT(
         SALMON_QUANT.out.quant.map { sid, cond, dir -> dir }.collect(),
         "${refs_dir}/tx2gene.tsv",
-        params.input
+        file(params.input)
     )
     ch_versions = ch_versions.mix(TXIMPORT.out.versions)
 
     // ---- Differential expression on the merged STAR matrix ----------------
-    DESEQ2(ch_star_matrix, params.input)
-    EDGER(ch_star_matrix, params.input)
-    LIMMA_VOOM(ch_star_matrix, params.input)
+
+    ch_degs = Channel.empty()
+    if (!params.skip_de) {
+
+    DESEQ2(ch_star_matrix, file(params.input))
+    EDGER(ch_star_matrix, file(params.input))
+    LIMMA_VOOM(ch_star_matrix, file(params.input))
     ch_versions = ch_versions.mix(DESEQ2.out.versions, EDGER.out.versions, LIMMA_VOOM.out.versions)
 
-    // KEGG and GO enrichment on each differential expression result.
-    // CLUSTERPROFILER's tag and publishDir read meta.method, which nothing
-    // else sets, so it is added here per DE method.
+
     ch_all_degs = DESEQ2.out.results.map     { meta, f -> tuple(meta + [method: 'deseq2'], f) }
         .mix( EDGER.out.results.map          { meta, f -> tuple(meta + [method: 'edger'], f) } )
         .mix( LIMMA_VOOM.out.results.map     { meta, f -> tuple(meta + [method: 'limma_voom'], f) } )
@@ -138,8 +126,12 @@ workflow BULK_RNASEQ {
     )
     ch_versions = ch_versions.mix(CONCORDANCE.out.versions)
 
+    ch_degs = DESEQ2.out.results
+
+    }   // end if (!params.skip_de)
+
     emit:
     counts   = MERGE_STAR.out.counts.map { aligner, f -> f }
-    degs     = DESEQ2.out.results
+    degs     = ch_degs
     versions = ch_versions
 }

@@ -1,5 +1,5 @@
 sample_id,condition,tissue,fastq_1,fastq_2,strandedness,single_end
-test_T1,tumor,esophagus,test_data/bulk_fastq/test_T1_R1.fastq.gz,test_data/bulk_fastq/test_T1_R2.fastq.gz,reverse,false
-test_N1,normal,esophagus,test_data/bulk_fastq/test_N1_R1.fastq.gz,test_data/bulk_fastq/test_N1_R2.fastq.gz,reverse,false
-test_T2,tumor,esophagus,test_data/bulk_fastq/test_T2_R1.fastq.gz,test_data/bulk_fastq/test_T2_R2.fastq.gz,reverse,false
-test_N2,normal,esophagus,test_data/bulk_fastq/test_N2_R1.fastq.gz,test_data/bulk_fastq/test_N2_R2.fastq.gz,reverse,false
+test_T1,tumor,esophagus,test_data/bulk_fastq/test_T1_R1.fastq.gz,test_data/bulk_fastq/test_T1_R2.fastq.gz,unstranded,false
+test_N1,normal,esophagus,test_data/bulk_fastq/test_N1_R1.fastq.gz,test_data/bulk_fastq/test_N1_R2.fastq.gz,unstranded,false
+test_T2,tumor,esophagus,test_data/bulk_fastq/test_T2_R1.fastq.gz,test_data/bulk_fastq/test_T2_R2.fastq.gz,unstranded,false
+test_N2,normal,esophagus,test_data/bulk_fastq/test_N2_R1.fastq.gz,test_data/bulk_fastq/test_N2_R2.fastq.gz,unstranded,false

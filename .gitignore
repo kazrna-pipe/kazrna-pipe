@@ -62,3 +62,25 @@ docs/_site/
 # even though the data is not.
 data/tcga_esca/*/
 data/tcga_esca/gdc_manifest.tsv
+
+# --- Index build logs ---
+*_index.log
+refs_build.log
+sra_download.log
+
+# --- Index build logs ---
+*_index.log
+refs_build.log
+sra_download.log
+
+# --- Index build and run logs ---
+*_index.log
+refs_build.log
+sra_download.log
+logs/
+
+# --- Index build and run logs ---
+*_index.log
+refs_build.log
+sra_download.log
+logs/
